@@ -1,0 +1,4 @@
+dist/
+*.mzp
+!/AlecTools.mzp
+*.bak

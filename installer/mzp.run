@@ -1,0 +1,5 @@
+name "Alec Tools"
+version 1
+extract to "AlecToolsPkg"
+drop "AlecTools_install.ms"
+clear temp on MAX exit
