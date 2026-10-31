@@ -4,6 +4,14 @@ Unelte personale pentru **3ds Max 2027**, scrise în MAXScript și Python (PySid
 
 Cod personal, fără garanții. Se schimbă des.
 
+## Instalare
+
+1. Descarcă `AlecTools.mzp` din rădăcina repo-ului.
+2. Trage-l în fereastra 3ds Max (sau rulează-l din **Scripting > Run Script**).
+3. Uneltele apar în **Customize User Interface**, la categoria **Alec Tools**.
+
+Nu cere drepturi de administrator. La o versiune nouă, repeți pașii; instalarea o înlocuiește pe cea veche.
+
 ## Uneltele
 
 Toate apar în **Customize User Interface** la categoria **Alec Tools**, de unde le legi la un shortcut sau la un buton. Unele deschid un *caddy*: o fereastră mică cu preview live și butoanele OK / Cancel.
