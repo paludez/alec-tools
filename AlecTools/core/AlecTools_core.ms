@@ -8,10 +8,27 @@ fn AlecTools_path rel =
 	AlecTools_root + "/" + rel
 )
 
--- fileIn lib/*.ms (shared helpers) and then every macro file;
+-- removes every Alec* global except the core ones, so a function deleted from the code does not outlive a reload
+fn AlecTools_purge =
+(
+	local core = #(#AlecTools_root, #AlecTools_path, #AlecTools_purge, #AlecTools_removeSavedMacros, #AlecTools_load, #AlecTools_reload)
+	for name in globalVars.gather() where matchPattern (name as string) pattern:"Alec*" and findItem core name == 0 do
+		globalVars.remove name
+)
+
+-- Max saves every macroScript it loads into usermacros and loads that copy at startup, so a renamed or deleted
+-- macro would come back as a stale duplicate. The macros loaded below are saved again.
+fn AlecTools_removeSavedMacros =
+(
+	for f in getFiles (getDir #userMacros + "/Alec Tools-*") do deleteFile f
+)
+
+-- purges stale globals and saved macro copies, then fileIn lib/*.ms (shared helpers) and every macro file;
 -- returns an array of error strings (empty = all ok)
 fn AlecTools_load =
 (
+	AlecTools_purge()
+	AlecTools_removeSavedMacros()
 	local errors = #()
 	local files = getFiles (AlecTools_root + "/lib/*.ms")
 	sort files

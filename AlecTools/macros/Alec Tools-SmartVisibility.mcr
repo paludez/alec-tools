@@ -6,7 +6,7 @@ buttonText:"Smart Hide"
 	on execute do
 	(
 		fileIn (AlecTools_path "tools/smartVisibility.ms")
-		AlecSmartVis_execute #hide
+		execute "AlecSmartVis_execute #hide"
 	)
 )
 
@@ -18,7 +18,7 @@ buttonText:"Smart Hide Unsel"
 	on execute do
 	(
 		fileIn (AlecTools_path "tools/smartVisibility.ms")
-		AlecSmartVis_execute #hideUnselected
+		execute "AlecSmartVis_execute #hideUnselected"
 	)
 )
 
@@ -30,6 +30,6 @@ buttonText:"Smart Unhide"
 	on execute do
 	(
 		fileIn (AlecTools_path "tools/smartVisibility.ms")
-		AlecSmartVis_execute #unhideAll
+		execute "AlecSmartVis_execute #unhideAll"
 	)
 )

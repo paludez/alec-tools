@@ -1,4 +1,8 @@
-fn AlecSmartVis_objectCommand opName =
+-- Smart Hide / Hide Unselected / Unhide All.
+-- In sub-object mode on a Line / Edit Spline, Editable Mesh / Edit Mesh or Editable Poly / Edit Poly it acts on the
+-- sub-objects, in every other case on the objects. Hide Unselected inverts the selection and hides it; the selection afterwards does not matter.
+
+fn AlecSmartVis_objectRun opName =
 (
 	case opName of
 	(
@@ -8,91 +12,77 @@ fn AlecSmartVis_objectCommand opName =
 	)
 )
 
-fn AlecSmartVis_invertMesh node =
+fn AlecSmartVis_editablePolyRun poly opName =
 (
-	local level = subObjectLevel
-	local sel = case level of
+	case opName of
 	(
-		1: getVertSelection node
-		2: getEdgeSelection node
-		default: getFaceSelection node
-	)
-	local n = case level of
-	(
-		1: meshop.getNumVerts node
-		2: meshop.getNumEdges node
-		default: meshop.getNumFaces node
-	)
-	local inv = #{1..n} - (AlecTools_bits sel)
-	case level of
-	(
-		1: setVertSelection node inv
-		2: setEdgeSelection node inv
-		default: setFaceSelection node inv
+		#hide: poly.ButtonOp #HideSelection
+		#hideUnselected: poly.ButtonOp #HideUnselected
+		#unhideAll: poly.ButtonOp #UnhideAll
 	)
 )
 
-fn AlecSmartVis_invertSpline node =
+-- the Edit_Poly modifier has separate button codes for the vertex level and the face levels, none for edge and border
+fn AlecSmartVis_editPolyRun poly opName =
 (
-	local level = subObjectLevel
-	local n = numSplines node
-	if level >= 3 then
-		setSplineSelection node (AlecTools_indices (#{1..n} - (AlecTools_bits (getSplineSelection node)))) keep:false
-	else for i = 1 to n do
+	local verb = case opName of
 	(
-		local count = if level == 1 then numKnots node i else numSegments node i
-		local sel = if level == 1 then getKnotSelection node i else getSegSelection node i
-		local inv = AlecTools_indices (#{1..count} - (AlecTools_bits sel))
-		if level == 1 then
-			setKnotSelection node i inv keep:(i > 1)
-		else
-			setSegSelection node i inv keep:(i > 1)
+		#hide: "Hide"
+		#hideUnselected: "HideUnselected"
+		#unhideAll: "UnHideAll"
 	)
+	poly.ButtonOp ((verb + (if subObjectLevel == 1 then "Vertex" else "Face")) as name)
 )
 
-fn AlecSmartVis_hideSpline curObj =
+-- the Editable_* classes are operated on through the node, the Edit_* modifiers through ApplyOperation
+fn AlecSmartVis_meshRun node cur opName =
 (
-	if classOf curObj == Edit_Spline then
-		ApplyOperation Edit_Spline SplineOps.Hide
+	if opName == #hideUnselected do max select invert
+	if classOf cur == Edit_Mesh then
+		ApplyOperation Edit_Mesh (if opName == #unhideAll then meshOps.unhideAll else meshOps.hide)
+	else if opName == #unhideAll then
+		meshOps.unhideAll node
 	else
-		splineOps.hide selection[1]
+		meshOps.hide node
 )
 
-fn AlecSmartVis_unhideSpline curObj =
+fn AlecSmartVis_splineRun node cur opName =
 (
-	if classOf curObj == Edit_Spline then
-		ApplyOperation Edit_Spline SplineOps.UnHideAll
+	if opName == #hideUnselected do max select invert
+	if classOf cur == Edit_Spline then
+		ApplyOperation Edit_Spline (if opName == #unhideAll then SplineOps.UnHideAll else SplineOps.Hide)
+	else if opName == #unhideAll then
+		splineOps.unhideAll node
 	else
-		splineOps.unhideAll selection[1]
+		splineOps.hide node
 )
 
-fn AlecSmartVis_run curObj opName =
+-- true when the object being edited is one of the supported kinds and the operation ran
+fn AlecSmartVis_subObjectRun opName =
 (
-	local c = classOf curObj
-	local node = if selection.count > 0 then selection[1] else undefined
-	if c == Edit_Poly or c == Editable_Poly then
+	local cur = modPanel.getCurrentObject()
+	local node = selection[1]
+	local c = classOf cur
+	if node == undefined then
+		false
+	else if c == Editable_Poly then
 	(
-		case opName of
-		(
-			#hide: curObj.ButtonOp #HideSelection
-			#hideUnselected: curObj.ButtonOp #HideUnselected
-			default: curObj.ButtonOp #UnhideAll
-		)
+		AlecSmartVis_editablePolyRun cur opName
+		true
+	)
+	else if c == Edit_Poly and subObjectLevel != 2 and subObjectLevel != 3 then
+	(
+		AlecSmartVis_editPolyRun cur opName
 		true
 	)
 	else if c == Editable_Mesh or c == Edit_Mesh then
 	(
-		if node != undefined do
-		(
-			if opName == #hideUnselected do AlecSmartVis_invertMesh node
-			if opName == #unhideAll then meshOps.unhideAll node else meshOps.hide node
-		)
+		AlecSmartVis_meshRun node cur opName
 		true
 	)
-	else if c == Edit_Spline or isKindOf curObj Shape or (node != undefined and isKindOf node Shape) then
+	else if c == SplineShape or c == Line or c == Edit_Spline then
 	(
-		if opName == #hideUnselected and node != undefined do AlecSmartVis_invertSpline node
-		if opName == #unhideAll then AlecSmartVis_unhideSpline curObj else AlecSmartVis_hideSpline curObj
+		AlecSmartVis_splineRun node cur opName
 		true
 	)
 	else
@@ -101,17 +91,10 @@ fn AlecSmartVis_run curObj opName =
 
 fn AlecSmartVis_execute opName =
 (
-	if subObjectLevel != undefined and subObjectLevel > 0 then
-	(
-		local curObj = modPanel.getCurrentObject()
-		if curObj != undefined and AlecSmartVis_run curObj opName then
-		(
-			redrawViews()
-			completeRedraw()
-		)
-		else
-			AlecSmartVis_objectCommand opName
-	)
+	if subObjectLevel == undefined or subObjectLevel == 0 then
+		AlecSmartVis_objectRun opName
+	else if AlecSmartVis_subObjectRun opName then
+		redrawViews()
 	else
-		AlecSmartVis_objectCommand opName
+		displayTempPrompt "Smart Visibility: obiectul sau nivelul de sub-obiect nu e suportat" 3000
 )
