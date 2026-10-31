@@ -174,9 +174,19 @@ fileIn (AlecTools_path "tools/distribute.ms")
 	if not (check "accept: the objects stay distributed, the session ends" (nearF b.pos.x 25 and AlecDist_active == undefined)) do failures += 1
 	b.pos = [10,30,5]
 
+	-- objects deleted while the caddy is open leave the session; fewer than 2 left and the preview stops
+	local d1 = box name:"ATtest_d1" pos:[0,500,0]
+	local d2 = box name:"ATtest_d2" pos:[40,500,0]
+	local d3 = box name:"ATtest_d3" pos:[100,500,0]
+	local dSess = newSess #(d1, d2, d3) (AlecDist_Settings()) anchor:d3
+	delete d3
+	if not (check "deleted: the session goes on with the others, the deleted anchor is unpicked" ((AlecDist_updatePreview dSess) and dSess.sources.count == 2 and dSess.saved.count == 2 and dSess.anchor == undefined)) do failures += 1
+	delete d2
+	if not (check "deleted: one object left, the preview stops" (not (AlecDist_updatePreview dSess))) do failures += 1
+	delete d1
+
 	-- run: one object opens nothing; two open the caddy with a preview; loading the file again closes it and the objects go back
-	local original = AlecDist_loadSettings()
-	AlecDist_saveSettings (AlecDist_Settings())
+	AlecTools_forgetSettings()
 	select a
 	AlecDist_run()
 	if not (check "run: one object, no caddy" (not AlecDist_rollout.open and AlecDist_active == undefined)) do failures += 1
@@ -185,13 +195,6 @@ fileIn (AlecTools_path "tools/distribute.ms")
 	if not (check "run: the caddy opens and the objects move as a preview" (AlecDist_rollout.open and nearF b.pos.x 25 and AlecDist_active.dims.boxes.count == 3)) do failures += 1
 	fileIn (AlecTools_path "tools/distribute.ms")
 	if not (check "load again (macro pressed while open): the caddy closes and the objects go back" (not AlecDist_rollout.open and nearF b.pos.x 10)) do failures += 1
-
-	-- settings are saved to the ini and read back; the user's own values are restored afterwards
-	AlecDist_saveSettings (AlecDist_Settings gaps:true axis:3 localAxes:true reference:4 alignX:true alignZ:true alignReference:1 blend:true)
-	local back = AlecDist_loadSettings()
-	if not (check "settings: saved and read back" (back.gaps and back.axis == 3 and back.localAxes and back.reference == 4 \
-		and back.alignX and not back.alignY and back.alignZ and back.alignReference == 1 and back.blend)) do failures += 1
-	AlecDist_saveSettings original
 
 	clearSelection()
 	delete (for o in objects where matchPattern o.name pattern:"ATtest_*" collect o)

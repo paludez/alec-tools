@@ -21,7 +21,7 @@ fn AlecGetMaterials_execute tabName:"Get Materials" =
 (
 	local mats = AlecGetMaterials_selectionMaterials()
 	if mats.count == 0 then
-		displayTempPrompt "Get Materials: nu e nimic de pus in SME, selectia nu are materiale" 3000
+		displayTempPrompt "Get Materials: the selection has no materials" 3000
 	else
 	(
 		local view = AlecGetMaterials_view tabName

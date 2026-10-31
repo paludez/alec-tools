@@ -34,12 +34,20 @@ fileIn (AlecTools_path "tools/midBetween.ms")
 	g.parent = c
 	select #(p, c, g)
 	AlecMid_moveObjects [100,0,0] (AlecMid_Settings())
-	if not (check "objects: the average of the pivots lands on the midpoint" (near (AlecMid_average #(p.pos, c.pos, g.pos)) [100,0,0])) do failures += 1
+	if not (check "objects: the average of the pivots lands on the midpoint" (near (AlecTools_average #(p.pos, c.pos, g.pos)) [100,0,0])) do failures += 1
 	if not (check "objects: a linked child is not moved twice" (near c.pos (p.pos + [50,0,0]) and near g.pos (p.pos + [80,0,0]))) do failures += 1
 	select p
 	AlecMid_moveObjects [0,0,0] (AlecMid_Settings bounds:true)
 	if not (check "objects: the bounding box center lands on the midpoint" (near (selection.center) [0,0,0])) do failures += 1
 	delete #(p, c, g)
+	-- a rotated box: its node.min/max box is not tight, the tight box of its geometry is what lands on the midpoint
+	local rot = Box name:"ATtest_rot" length:10 width:40 height:10 pos:[0,0,0]
+	rotate rot (eulerAngles 30 40 0)
+	select rot
+	AlecMid_moveObjects [50,0,0] (AlecMid_Settings bounds:true)
+	local rb = nodeGetBoundingBox rot (matrix3 1)
+	if not (check "objects: a rotated object's tight box center lands on the midpoint" (near ((rb[1] + rb[2]) / 2) [50,0,0])) do failures += 1
+	delete rot
 
 	-- Editable Poly, vertex / edge / face level
 	local ep = convertToPoly (awkwardBox "ATtest_EP")
@@ -79,12 +87,16 @@ fileIn (AlecTools_path "tools/midBetween.ms")
 	if not (check "Edit Poly vertex: selected verts" ((AlecMid_selectedVerts m em) == #{1})) do failures += 1
 	AlecMid_moveVerts m em #{1} mid (AlecMid_Settings())
 	if not (check "Edit Poly vertex: moved to the midpoint (world)" (near (AlecMid_vertsCenter m em #{1} false) mid)) do failures += 1
+	max select none
+	local vertsBefore = #{5}
+	m.Select #Vertex vertsBefore
 	subObjectLevel = 2
 	max select none
 	pick = #{1}
 	m.Select #Edge pick
 	verts = AlecMid_selectedVerts m em
 	if not (check "Edit Poly edge: two vertices" (verts.numberSet == 2)) do failures += 1
+	if not (check "Edit Poly edge: the user's vertex selection is not changed" ((m.GetSelection #Vertex) == #{5})) do failures += 1
 	AlecMid_moveVerts m em verts mid (AlecMid_Settings())
 	if not (check "Edit Poly edge: center on the midpoint (world)" (near (AlecMid_vertsCenter m em verts false) mid)) do failures += 1
 	subObjectLevel = 4
@@ -244,13 +256,6 @@ fileIn (AlecTools_path "tools/midBetween.ms")
 	AlecMid_accept()
 	if not (check "repick: accept without points moves nothing" (near runBox.pos [7,8,9] and AlecMid_active == undefined)) do failures += 1
 	delete runBox
-
-	-- settings are saved to the ini and read back; the user's own values are restored afterwards
-	local original = AlecMid_loadSettings()
-	AlecMid_saveSettings (AlecMid_Settings bounds:true targetBounds:true fromObjects:true x:false y:true z:false)
-	local back = AlecMid_loadSettings()
-	if not (check "settings: saved and read back" (back.bounds and back.targetBounds and back.fromObjects and not back.x and back.y and not back.z)) do failures += 1
-	AlecMid_saveSettings original
 
 	format "midBetween_test: % failure(s)\n" failures
 )

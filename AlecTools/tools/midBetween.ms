@@ -6,7 +6,7 @@
 -- Sub-objects (Editable Poly, Edit Poly): the center of the selected vertices; edges and faces count by their vertices.
 -- Editable Poly and Edit Poly do not share commands: polyop.* for the first, the modifier's own methods for the second.
 
--- settings: kept in AlecTools.ini, so the last choice is the next default
+-- settings: the last choice is the next default, for this scene (lib/settings.ms)
 struct AlecMid_Settings
 (
 	bounds = false,       -- the center of what moves: bounding box instead of the average
@@ -20,52 +20,16 @@ struct AlecMid_Session (settings, points = #(), cur, node, verts, preview, ended
 
 global AlecMid_active = undefined
 
-fn AlecMid_readBool key default =
-(
-	local text = getINISetting (AlecTools_iniFile()) "MidBetween" key
-	if text == "" then default else text == "true"
-)
-
-fn AlecMid_loadSettings =
-(
-	AlecMid_Settings bounds:(AlecMid_readBool "bounds" false) targetBounds:(AlecMid_readBool "targetBounds" false) \
-		fromObjects:(AlecMid_readBool "fromObjects" false) x:(AlecMid_readBool "x" true) y:(AlecMid_readBool "y" true) z:(AlecMid_readBool "z" true)
-)
-
-fn AlecMid_saveSettings s =
-(
-	local f = AlecTools_iniFile()
-	setINISetting f "MidBetween" "bounds" (s.bounds as string)
-	setINISetting f "MidBetween" "targetBounds" (s.targetBounds as string)
-	setINISetting f "MidBetween" "fromObjects" (s.fromObjects as string)
-	setINISetting f "MidBetween" "x" (s.x as string)
-	setINISetting f "MidBetween" "y" (s.y as string)
-	setINISetting f "MidBetween" "z" (s.z as string)
-)
-
 -- points and axes
-
-fn AlecMid_average points =
-(
-	local sum = [0, 0, 0]
-	for p in points do sum += p
-	sum / points.count
-)
 
 -- the average of the points, or the center of their bounding box
 fn AlecMid_center points useBounds =
 (
-	if not useBounds then AlecMid_average points
+	if not useBounds then AlecTools_average points
 	else
 	(
-		local lo = points[1]
-		local hi = points[1]
-		for p in points do
-		(
-			lo = [amin lo.x p.x, amin lo.y p.y, amin lo.z p.z]
-			hi = [amax hi.x p.x, amax hi.y p.y, amax hi.z p.z]
-		)
-		(lo + hi) / 2
+		local b = AlecTools_pointsBounds points
+		(b[1] + b[2]) / 2
 	)
 )
 
@@ -84,10 +48,16 @@ fn AlecMid_hasSelectedAncestor node =
 	p != undefined
 )
 
--- the center of the selected objects, in world space
+-- the center of the selected objects, in world space; the bounding box is tight on the geometry (selection.center is not on rotated objects)
 fn AlecMid_objectsCenter s =
 (
-	in coordsys world (if s.bounds then selection.center else AlecMid_average (for o in selection collect o.pos))
+	local nodes = selection as array
+	if s.bounds then
+	(
+		local b = AlecTools_bounds nodes (matrix3 1)
+		(b[1] + b[2]) / 2
+	)
+	else in coordsys world AlecTools_average (for o in nodes collect o.pos)
 )
 
 -- moves the selected objects so their center is at mid; a selected child follows its selected parent, so only the top ones are moved
@@ -114,8 +84,20 @@ fn AlecMid_selectedVerts cur node =
 	)
 	else if classOf cur == Edit_Poly then
 	(
-		if level > 1 do cur.ConvertSelection (if level <= 3 then #Edge else #Face) #Vertex
-		cur.GetSelection #Vertex
+		-- read through the edges and faces, not ConvertSelection, which would leave the user's vertex selection changed
+		if level == 1 then cur.GetSelection #Vertex
+		else if level <= 3 then
+		(
+			local verts = #{}
+			for e in cur.GetSelection #Edge do (verts[cur.GetEdgeVertex e 1 node:node] = true; verts[cur.GetEdgeVertex e 2 node:node] = true)
+			verts
+		)
+		else
+		(
+			local verts = #{}
+			for f in cur.GetSelection #Face do for i = 1 to cur.GetFaceDegree f node:node do verts[cur.GetFaceVertex f i node:node] = true
+			verts
+		)
 	)
 	else undefined
 )
@@ -315,7 +297,7 @@ rollout AlecMid_rollout "Mid Between"
 	(
 		local s = AlecMid_Settings bounds:(rdoSource.state == 2) targetBounds:(rdoTarget.state == 2) \
 			fromObjects:(rdoPoints.state == 2) x:chkX.checked y:chkY.checked z:chkZ.checked
-		AlecMid_saveSettings s
+		AlecTools_rememberSettings "MidBetween" s
 		AlecMid_active.settings = s
 		AlecMid_updatePreview AlecMid_active
 	)
@@ -373,7 +355,7 @@ fn AlecMid_run s showCaddy =
 		(
 			AlecMid_active = sess
 			if showCaddy do
-				createDialog AlecMid_rollout 260 220 pos:(AlecTools_dialogPos "MidBetween" 260 220) style:#(#style_toolwindow, #style_sysmenu)
+				AlecTools_openCaddy AlecMid_rollout "MidBetween" 260 220
 			AlecMid_collectPoints sess
 			if sess.points.count == 0 then
 			(
@@ -387,5 +369,5 @@ fn AlecMid_run s showCaddy =
 
 fn AlecMid_execute showCaddy:false =
 (
-	AlecMid_run (AlecMid_loadSettings()) showCaddy
+	AlecMid_run (AlecTools_recallSettings "MidBetween" (AlecMid_Settings())) showCaddy
 )

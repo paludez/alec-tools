@@ -18,7 +18,7 @@ if AlecDist_rollout != undefined and AlecDist_rollout.open do destroyDialog Alec
 global AlecDist_draw
 unregisterRedrawViewsCallback AlecDist_draw
 
--- settings: kept in AlecTools.ini, so the last choice is the next default
+-- settings: the last choice is the next default, for this scene (lib/settings.ms)
 struct AlecDist_Settings
 (
 	gaps = false,       -- equal space between bounding boxes instead of equal steps between reference points
@@ -37,27 +37,6 @@ struct AlecDist_Settings
 struct AlecDist_Session (settings, sources = #(), saved = #(), anchor, axesOf, step = 0.0, gap = 0.0, autoFill = true, order = #(), dims)
 
 global AlecDist_active = undefined
-
-fn AlecDist_readSetting key default =
-(
-	local text = getINISetting (AlecTools_iniFile()) "Distribute" key
-	if text == "" then default else if classOf default == BooleanClass then text == "true" else text as integer
-)
-
-fn AlecDist_loadSettings =
-(
-	AlecDist_Settings gaps:(AlecDist_readSetting "gaps" false) axis:(AlecDist_readSetting "axis" 1) localAxes:(AlecDist_readSetting "localAxes" false) \
-		reference:(AlecDist_readSetting "reference" 3) alignX:(AlecDist_readSetting "alignX" false) alignY:(AlecDist_readSetting "alignY" false) \
-		alignZ:(AlecDist_readSetting "alignZ" false) alignReference:(AlecDist_readSetting "alignReference" 3) blend:(AlecDist_readSetting "blend" false) \
-		showDims:(AlecDist_readSetting "showDims" true)
-)
-
-fn AlecDist_saveSettings s =
-(
-	local f = AlecTools_iniFile()
-	for key in #(#gaps, #axis, #localAxes, #reference, #alignX, #alignY, #alignZ, #alignReference, #blend, #showDims) do
-		setINISetting f "Distribute" (key as string) ((getProperty s key) as string)
-)
 
 -- what moves
 
@@ -256,13 +235,11 @@ fn AlecDist_buildDims sess =
 	local measures = #()
 	for n in sess.order do append measures (AlecDist_measure n frame)
 	for m in measures do AlecTools_addBox ov m[1] m[2] frame
-	local lo = measures[1][1]
-	local hi = measures[1][2]
-	for m in measures do
-	(
-		lo = [amin lo.x m[1].x, amin lo.y m[1].y, amin lo.z m[1].z]
-		hi = [amax hi.x m[2].x, amax hi.y m[2].y, amax hi.z m[2].z]
-	)
+	local corners = #()
+	for m in measures do join corners #(m[1], m[2])
+	local all = AlecTools_pointsBounds corners
+	local lo = all[1]
+	local hi = all[2]
 	local offset = amax 5.0 (0.1 * (hi[a] - lo[a]))
 	local place = AlecDist_withComponent (AlecDist_withComponent [0, 0, 0] side (hi[side] + offset)) below lo[below]
 	local tick = (AlecDist_axisDir frame side) * (offset * 0.4)
@@ -309,11 +286,29 @@ fn AlecDist_apply sess =
 	)
 )
 
+-- objects deleted while the caddy is open leave the session (with their saved transforms); a deleted anchor or axes object is unpicked
+fn AlecDist_prune sess =
+(
+	local keep = for i = 1 to sess.sources.count where isValidNode sess.sources[i] collect i
+	sess.saved = for i in keep collect sess.saved[i]
+	sess.sources = for i in keep collect sess.sources[i]
+	if sess.anchor != undefined and not (isValidNode sess.anchor) do sess.anchor = undefined
+	if sess.axesOf != undefined and not (isValidNode sess.axesOf) do sess.axesOf = undefined
+	sess.order = for n in sess.order where isValidNode n collect n
+)
+
+-- false (and nothing moves) when fewer than 2 objects are left
 fn AlecDist_updatePreview sess =
 (
-	with undo off (AlecDist_apply sess)
-	AlecDist_buildDims sess
-	redrawViews()
+	AlecDist_prune sess
+	local enough = sess.sources.count >= 2
+	if enough do
+	(
+		with undo off (AlecDist_apply sess)
+		AlecDist_buildDims sess
+		redrawViews()
+	)
+	enough
 )
 
 fn AlecDist_end =
@@ -364,8 +359,9 @@ rollout AlecDist_rollout "Distribute"
 	button btnReset "Reset" width:280
 	button btnOk "OK" width:136 across:2
 	button btnCancel "Cancel" width:136
-	-- Esc does not reach a dialog on its own, so the key is polled; it also works when the viewport has the focus
+	-- Esc closes the caddy, also when the viewport has the focus, but not the Esc that cancels a pick (lib/common.ms)
 	timer tmrEsc interval:100
+	local escWatch = AlecTools_EscWatch()
 
 	-- what applies right now is enabled; the spinners show the step and the gap in use
 	fn showState =
@@ -393,8 +389,12 @@ rollout AlecDist_rollout "Distribute"
 
 	fn update =
 	(
-		AlecDist_updatePreview AlecDist_active
-		showState()
+		if AlecDist_updatePreview AlecDist_active then showState()
+		else
+		(
+			displayTempPrompt "Distribute: fewer than 2 objects left" 3000
+			destroyDialog AlecDist_rollout
+		)
 	)
 
 	fn fill s =
@@ -416,7 +416,7 @@ rollout AlecDist_rollout "Distribute"
 	(
 		local s = AlecDist_Settings gaps:(rdoMode.state == 2) axis:rdoAxis.state localAxes:(rdoSpace.state == 2) reference:rdoRef.state \
 			alignX:chkX.checked alignY:chkY.checked alignZ:chkZ.checked alignReference:rdoAlignRef.state blend:chkBlend.checked showDims:chkDims.checked
-		AlecDist_saveSettings s
+		AlecTools_rememberSettings "Distribute" s
 		AlecDist_active.settings = s
 		if refill do AlecDist_active.autoFill = true
 		update()
@@ -490,7 +490,7 @@ rollout AlecDist_rollout "Distribute"
 		destroyDialog AlecDist_rollout
 	)
 	on btnCancel pressed do destroyDialog AlecDist_rollout
-	on tmrEsc tick do if keyboard.escPressed do destroyDialog AlecDist_rollout
+	on tmrEsc tick do if AlecTools_escPressed escWatch do destroyDialog AlecDist_rollout
 	on AlecDist_rollout moved p do AlecTools_saveDialogPos "Distribute" p
 	on AlecDist_rollout close do AlecDist_end()
 )
@@ -506,9 +506,9 @@ fn AlecDist_run =
 		displayTempPrompt "Distribute: select at least 2 objects" 3000
 	else
 	(
-		AlecDist_active = AlecDist_newSession (AlecDist_loadSettings()) sources
+		AlecDist_active = AlecDist_newSession (AlecTools_recallSettings "Distribute" (AlecDist_Settings())) sources
 		AlecDist_updatePreview AlecDist_active
 		registerRedrawViewsCallback AlecDist_draw
-		createDialog AlecDist_rollout 300 391 pos:(AlecTools_dialogPos "Distribute" 300 391) style:#(#style_toolwindow, #style_sysmenu)
+		AlecTools_openCaddy AlecDist_rollout "Distribute" 300 391
 	)
 )

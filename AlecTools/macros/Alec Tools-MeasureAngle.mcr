@@ -6,8 +6,10 @@ iconName:":/Icons/MainUI/Protractor_24.png"
 (
 	on execute do
 	(
+		-- Shift is read first, before the files load
+		local showDialog = keyboard.shiftPressed
 		fileIn (AlecTools_path "tools/measureAngle.ms")
-		if keyboard.shiftPressed then
+		if showDialog then
 		(
 			fileIn (AlecTools_path "tools/measureAngleDialog.ms")
 			execute "AlecAngle_openDialog()"

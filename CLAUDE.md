@@ -31,6 +31,8 @@ tools/build_mzp.ps1   builds dist/AlecTools.mzp (build.bat)
 
 ## Rules for code
 
+- **Language: only the user writes in Romanian. Claude thinks, answers and writes everything in English**: replies in chat, code, comments, UI messages, tests, commit messages, audit.md, README.md and this file. No exceptions.
+
 - MAXScript for macros and anything that touches the scene. Python (pymxs) for files, images, JSON and complex UI.
 - Names: `AlecTools_` for shared helpers, `Alec<ToolName>_` for a tool's own functions (e.g. `AlecSmartVis_`).
 - Short functions, no unused functions, no dead code, no commented-out code.
@@ -38,6 +40,27 @@ tools/build_mzp.ps1   builds dist/AlecTools.mzp (build.bat)
 - Macros stay thin: they call a tool function, nothing more.
 - **Editable Poly and the Edit Poly modifier do not have exactly the same commands**, and the same goes for Editable Mesh / Edit Mesh and for a spline shape / the Edit Spline modifier. For example the selection call differs (`obj.EditablePoly.SetSelection` vs `modifier.SetSelection`), and `polyop.*` queries are for Editable Poly, not for the Edit Poly modifier. Never assume a command that works on one works on the other: check it on both before writing the code (a check `.ms` that creates the object, runs the command and prints the result, run by the user), and cover both in the test.
 - One tool at a time: write it, the user tests it in Max, commit only when the user asks.
+
+## Shared code (lib/)
+
+Before writing a helper in a tool, look in `lib/` for one that already does it. When the same logic would appear in a second tool, move it to `lib/` as `AlecTools_*` and switch the first tool to it in the same change. A helper used by one tool stays in that tool.
+
+What exists, use it instead of rewriting it:
+
+- `lib/settings.ms`: a dialog's choices, `AlecTools_rememberSettings section s` / `AlecTools_recallSettings section default`. They last for the current scene only (new/reset/open scene, a Max restart or a reload go back to the defaults); never put them in the ini.
+- `lib/common.ms`: `AlecTools_iniFile` (dialog positions only), `AlecTools_openCaddy` (opens a dialog where the user left it; the rollout saves the place in `on moved` with `AlecTools_saveDialogPos`), `AlecTools_EscWatch` / `AlecTools_escPressed` (Esc closes a caddy: a `timer` in the rollout, never `keyboard.escPressed` directly, or the Esc that cancels a pick closes the caddy too).
+- `lib/nodes.ms`: groups (`AlecTools_parts`, `AlecTools_groupObject`, `AlecTools_inClosedGroup`, `AlecTools_isClosedHead`), `AlecTools_isMeasurable`, `AlecTools_localFrame` (rotation without scale), `AlecTools_bounds` (tight bounds in any frame: use it, not `node.min/max` or `selection.center`), `AlecTools_rayHit` / `AlecTools_surfaceAt` / `AlecTools_objectAt` (what is under the mouse).
+- `lib/overlay.ms`: `AlecTools_Overlay`, `AlecTools_addBox`, `AlecTools_addDimension`, `AlecTools_drawOverlay` for everything a tool draws in the viewports.
+- `lib/overlayTool.ms`: every `tool` that draws calls `AlecTools_beginOverlayTool drawFn ctrlFn` in `on start` and `AlecTools_endOverlayTool()` in `on stop`; never `registerRedrawViewsCallback` or `AlecTools_watchCtrl` directly, or a reload cannot end it.
+- `lib/ctrlKey.ms`: Ctrl as a switch inside a running tool (through overlayTool).
+
+Patterns a new tool follows, so tools behave alike:
+
+- A tool with options and a preview is a caddy (see `bbox.ms`, `distribute.ms`): settings struct kept with lib/settings.ms, a session struct, preview with `undo off`, OK redoes it in one `undo "Name" on`, Cancel/Esc/close restores. The tool file closes a caddy still open from the last load before defining its rollout again.
+- A tool that measures in the viewport is a `tool` started with `startTool` (see `measure*.ms`): the first click comes twice, skip `clickno == 2`; right click/Esc ends and clears.
+- Status messages go to `displayTempPrompt` / `replacePrompt`, starting with the tool's name, in English like the rest of the UI. Lengths through `units.formatValue`.
+- A macro gets an `iconName:` when the user wants one (find it with the Icon Browser macro); shortcut-only macros can go without.
+- `audit.md` lists known problems and planned cleanups; strike through an item when it is done, and check it before adding a helper it already plans.
 
 ## Testing
 
@@ -48,6 +71,8 @@ The user runs the tests and checks in Max, not Claude. Claude writes the `.ms` f
 - `getDir #userScripts` and `getDir #userStartupScripts` exist.
 - A parenthesized block is compiled before a `fileIn` inside it runs, so a function defined by that `fileIn` must be called with `execute "fn()"` from the same block.
 - `sort` works on an array of strings.
+- `toolMode.commandMode` is `#pick` while a pickbutton picks. The Esc that cancels the pick shows in a 50 ms timer only after the mode has already left `#pick`.
+- A global name used in a function binds to the global that existed when the function was compiled. After `globalVars.remove` (the purge) and a new definition, that function still sees the removed one (undefined). The core therefore calls lib functions by name: `(globalVars.get #name)()`.
 - Edit Poly modifier: `SetSelection` returns true but the selection stays empty; use `modifier.Select #Vertex bits` (adds to the selection, the bits go in a variable because the argument is by reference) and `modifier.GetSelection`. `ConvertSelection #Face #Vertex` fills the vertex selection and keeps the face selection and the sub-object level. `modifier.MoveSelection delta` without `axis:` moves in world space; read positions back with `modifier.GetVertex v node:node` (world). Editable Poly: `polyop.moveVert node verts delta node:node` moves in world space.
 - `nodeGetBoundingBox node frame` is tight on the evaluated geometry (modifiers included) in any frame and takes ~0 ms on 244k vertices. `node.min`/`node.max` is not tight on rotated objects.
 - Max saves every `macroScript` it loads as `<category>-<name>.mcr` in `getDir #userMacros` and loads that copy again at startup. A renamed macro therefore showed up twice (old copy + new). `AlecTools_load` deletes the `Alec Tools-*` copies before loading the macros, which Max then saves again. The stale entry stays in the running session until Max restarts.

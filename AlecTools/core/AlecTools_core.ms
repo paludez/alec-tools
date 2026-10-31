@@ -27,6 +27,9 @@ fn AlecTools_removeSavedMacros =
 -- returns an array of error strings (empty = all ok)
 fn AlecTools_load =
 (
+	-- a viewport tool still running keeps its drawing callback and Ctrl timer, which the purge would leave calling undefined functions.
+	-- Looked up by name: a name written here binds to the global that existed when the core was compiled, which an earlier purge removed
+	if globalVars.isGlobal #AlecTools_endOverlayTool do (globalVars.get #AlecTools_endOverlayTool)()
 	AlecTools_purge()
 	AlecTools_removeSavedMacros()
 	local errors = #()

@@ -5,10 +5,6 @@
 -- Axes: the world, or the reference object's own (rotation without scale); Ctrl switches. Boxes are tight on the evaluated geometry.
 -- A member of a closed group stands for its whole group. Right click or Esc ends the command and the viewports are cleared.
 
--- the drawing callback of an older load is the old function value, so it is removed by that value before the name is defined again
-global AlecGap_draw
-unregisterRedrawViewsCallback AlecGap_draw
-
 global AlecGap_overlay = undefined
 
 fn AlecGap_draw = if AlecGap_overlay != undefined do AlecTools_drawOverlay AlecGap_overlay
@@ -124,7 +120,7 @@ fn AlecGap_toggleWorld =
 
 tool AlecGap_tool
 (
-	fn track =
+	fn track = if AlecTools_hoverMoved viewPoint do
 	(
 		local node = AlecTools_objectAt viewPoint
 		if node == AlecGap_ref do node = undefined
@@ -140,8 +136,7 @@ tool AlecGap_tool
 		AlecGap_ref = undefined
 		AlecGap_other = undefined
 		AlecGap_overlay = AlecTools_Overlay()
-		registerRedrawViewsCallback AlecGap_draw
-		AlecTools_watchCtrl AlecGap_toggleWorld
+		AlecTools_beginOverlayTool AlecGap_draw AlecGap_toggleWorld
 	)
 	on freeMove do if AlecGap_ref != undefined do track()
 	on mouseMove clickno do if AlecGap_ref != undefined do track()
@@ -158,10 +153,8 @@ tool AlecGap_tool
 	)
 	on stop do
 	(
-		AlecTools_stopWatchCtrl()
-		unregisterRedrawViewsCallback AlecGap_draw
 		AlecGap_overlay = undefined
-		redrawViews()
+		AlecTools_endOverlayTool()
 	)
 )
 

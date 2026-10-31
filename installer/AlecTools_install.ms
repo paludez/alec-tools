@@ -36,11 +36,14 @@ fn AlecTools_copyTree srcDir dstDir =
 
 	try
 	(
-		-- fresh copy, so tools removed from the package do not linger
+		-- fresh copy, so tools removed from the package do not linger; it is copied next to the old one first,
+		-- so a copy that fails half way leaves the old install working
 		local dirIO = dotNetClass "System.IO.Directory"
+		local staged = dest + ".new"
+		if dirIO.Exists staged do dirIO.Delete staged true
+		local n = AlecTools_copyTree (pkgDir + "AlecTools") staged
 		if dirIO.Exists dest do dirIO.Delete dest true
-
-		local n = AlecTools_copyTree (pkgDir + "AlecTools") dest
+		dirIO.Move staged dest
 		(dotNetClass "System.IO.File").Copy (pkgDir + "AlecTools_Load.ms") (startupDir + "/AlecTools_Load.ms") true
 
 		fileIn (startupDir + "/AlecTools_Load.ms")

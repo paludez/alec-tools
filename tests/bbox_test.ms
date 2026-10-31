@@ -212,6 +212,16 @@ fileIn (AlecTools_path "tools/bbox.ms")
 	local firstPreview = AlecBBox_active.cages[1]
 	AlecBBox_updatePreview AlecBBox_active
 	if not (check "preview: an update replaces the old cage" (not (isValidNode firstPreview) and AlecBBox_active.cages.count == 1)) do failures += 1
+	-- a new offset resizes the same cage in place; a change in the number of cages makes them again
+	local refitted = AlecBBox_active.cages[1]
+	AlecBBox_active.settings = AlecBBox_Settings each:true offset:4.0
+	AlecBBox_updatePreview AlecBBox_active refit:true
+	if not (check "refit: the offset resizes the same cage" (isValidNode refitted and AlecBBox_active.cages[1] == refitted and near (cageSize refitted) [18,18,18])) do failures += 1
+	AlecBBox_active.settings = AlecBBox_Settings each:true offset:4.0 addCopy:true
+	AlecBBox_updatePreview AlecBBox_active refit:true
+	if not (check "refit: one cage more, they are made again" (not (isValidNode refitted) and AlecBBox_active.cages.count == 2)) do failures += 1
+	AlecBBox_active.settings = AlecBBox_Settings each:true
+	AlecBBox_updatePreview AlecBBox_active
 	local lastPreview = AlecBBox_active.cages[1]
 	AlecBBox_accept()
 	local kept = for o in objects where o.name == "ATtest_b1_bbox_W" collect o
@@ -223,6 +233,14 @@ fileIn (AlecTools_path "tools/bbox.ms")
 	local dropped = AlecBBox_active.cages[1]
 	AlecBBox_end()
 	if not (check "cancel: the preview is gone and the session ends" (not (isValidNode dropped) and AlecBBox_active == undefined)) do failures += 1
+	-- a "BBox helpers" layer made by the preview goes with Cancel (only checked when the scene had no such layer before the test)
+	if not helpersExisted do
+	(
+		AlecBBox_active = AlecBBox_Session settings:(AlecBBox_Settings each:true useLayer:true) sources:#(b1) hadLayer:false
+		AlecBBox_updatePreview AlecBBox_active
+		AlecBBox_end()
+		if not (check "cancel: the layer the preview made is removed" (LayerManager.getLayerFromName "BBox helpers" == undefined)) do failures += 1
+	)
 
 	-- run: nothing measurable selected waits for a pick, and giving up opens nothing (a timer ends the picking like a right click, so no click is needed;
 	-- global because the timer handler cannot see the locals of this block); a run opens the caddy with a preview; running again or loading the file again closes the old one
@@ -243,13 +261,6 @@ fileIn (AlecTools_path "tools/bbox.ms")
 	runPreview = AlecBBox_active.cages[1]
 	fileIn (AlecTools_path "tools/bbox.ms")
 	if not (check "load again (macro pressed while open): the old caddy and its preview are gone" (not (isValidNode runPreview) and not AlecBBox_rollout.open)) do failures += 1
-
-	-- settings are saved to the ini and read back; the user's own values are restored afterwards
-	local original = AlecBBox_loadSettings()
-	AlecBBox_saveSettings (AlecBBox_Settings each:true localAxes:true offset:2.5 addCopy:true useLayer:false)
-	local back = AlecBBox_loadSettings()
-	if not (check "settings: saved and read back" (back.each and back.localAxes and back.offset == 2.5 and back.addCopy and not back.useLayer)) do failures += 1
-	AlecBBox_saveSettings original
 
 	clearSelection()
 	delete (for o in objects where matchPattern o.name pattern:"ATtest_*" collect o)

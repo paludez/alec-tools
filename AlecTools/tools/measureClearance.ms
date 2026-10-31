@@ -3,10 +3,6 @@
 -- Ctrl turns the direction into the surface instead: the thickness of a wall or a slab.
 -- Only visible geometry the ray hits counts (intersectRayScene). Right click or Esc ends the command and the viewports are cleared.
 
--- the drawing callback of an older load is the old function value, so it is removed by that value before the name is defined again
-global AlecClear_draw
-unregisterRedrawViewsCallback AlecClear_draw
-
 global AlecClear_overlay = undefined
 
 fn AlecClear_draw = if AlecClear_overlay != undefined do AlecTools_drawOverlay AlecClear_overlay
@@ -106,15 +102,14 @@ tool AlecClear_tool
 		AlecClear_screen = undefined
 		AlecClear_current = undefined
 		AlecClear_overlay = AlecTools_Overlay()
-		registerRedrawViewsCallback AlecClear_draw
-		AlecTools_watchCtrl AlecClear_toggleInward
+		AlecTools_beginOverlayTool AlecClear_draw AlecClear_toggleInward
 	)
-	on freeMove do
+	on freeMove do if AlecTools_hoverMoved viewPoint do
 	(
 		AlecClear_screen = viewPoint
 		AlecClear_show()
 	)
-	on mouseMove clickno do
+	on mouseMove clickno do if AlecTools_hoverMoved viewPoint do
 	(
 		AlecClear_screen = viewPoint
 		AlecClear_show()
@@ -128,10 +123,8 @@ tool AlecClear_tool
 	)
 	on stop do
 	(
-		AlecTools_stopWatchCtrl()
-		unregisterRedrawViewsCallback AlecClear_draw
 		AlecClear_overlay = undefined
-		redrawViews()
+		AlecTools_endOverlayTool()
 	)
 )
 

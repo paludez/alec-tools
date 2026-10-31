@@ -4,10 +4,6 @@
 -- A member of a closed group stands for its whole group. Only geometry the mouse ray hits counts (intersectRayScene).
 -- Right click or Esc ends the command and the boxes and texts go from the viewports.
 
--- the drawing callback of an older load is the old function value, so it is removed by that value before the name is defined again
-global AlecMBox_draw
-unregisterRedrawViewsCallback AlecMBox_draw
-
 global AlecMBox_overlay = undefined
 
 fn AlecMBox_draw = if AlecMBox_overlay != undefined do AlecTools_drawOverlay AlecMBox_overlay
@@ -69,7 +65,7 @@ fn AlecMBox_toggleWorld =
 
 tool AlecMBox_tool
 (
-	fn track =
+	fn track = if AlecTools_hoverMoved viewPoint do
 	(
 		local node = AlecTools_objectAt viewPoint
 		if node != AlecMBox_hover do
@@ -84,8 +80,7 @@ tool AlecMBox_tool
 		AlecMBox_kept = #()
 		AlecMBox_hover = undefined
 		AlecMBox_overlay = AlecTools_Overlay()
-		registerRedrawViewsCallback AlecMBox_draw
-		AlecTools_watchCtrl AlecMBox_toggleWorld
+		AlecTools_beginOverlayTool AlecMBox_draw AlecMBox_toggleWorld
 	)
 	on freeMove do track()
 	on mouseMove clickno do track()
@@ -98,10 +93,8 @@ tool AlecMBox_tool
 	)
 	on stop do
 	(
-		AlecTools_stopWatchCtrl()
-		unregisterRedrawViewsCallback AlecMBox_draw
 		AlecMBox_overlay = undefined
-		redrawViews()
+		AlecTools_endOverlayTool()
 	)
 )
 

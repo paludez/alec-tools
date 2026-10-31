@@ -60,32 +60,52 @@ fn AlecAngle_facesOverlay faces normal =
 	ov
 )
 
--- the object under the mouse with its world mesh and a ray grid on it, kept while the mouse stays on that object
-global AlecAngle_pickNode = undefined
+-- the object under the mouse with its world mesh and a ray grid on it. The last 2 objects are kept, #(node, mesh, grid) each,
+-- most recent first, so moving between the 2 objects of a measure does not snapshot and grid them again
+global AlecAngle_pickCache = #()
 global AlecAngle_pickMesh = undefined
 global AlecAngle_pickGrid = undefined
 
+fn AlecAngle_freeEntry e =
+(
+	e[3].free()
+	delete e[2]
+)
+
 fn AlecAngle_freePick =
 (
-	if AlecAngle_pickGrid != undefined do AlecAngle_pickGrid.free()
-	if AlecAngle_pickMesh != undefined do delete AlecAngle_pickMesh
-	AlecAngle_pickNode = undefined
+	for e in AlecAngle_pickCache do AlecAngle_freeEntry e
+	AlecAngle_pickCache = #()
 	AlecAngle_pickMesh = undefined
 	AlecAngle_pickGrid = undefined
 )
 
 fn AlecAngle_usePick node =
 (
-	if node != AlecAngle_pickNode do
+	local k = 0
+	for i = 1 to AlecAngle_pickCache.count where AlecAngle_pickCache[i][1] == node do k = i
+	local e
+	if k > 0 then
 	(
-		AlecAngle_freePick()
-		AlecAngle_pickNode = node
-		AlecAngle_pickMesh = snapshotAsMesh node
-		AlecAngle_pickGrid = RayMeshGridIntersect()
-		AlecAngle_pickGrid.Initialize 10
-		AlecAngle_pickGrid.addNode node
-		AlecAngle_pickGrid.buildGrid()
+		e = AlecAngle_pickCache[k]
+		deleteItem AlecAngle_pickCache k
 	)
+	else
+	(
+		local grid = RayMeshGridIntersect()
+		grid.Initialize 10
+		grid.addNode node
+		grid.buildGrid()
+		e = #(node, snapshotAsMesh node, grid)
+		if AlecAngle_pickCache.count == 2 do
+		(
+			AlecAngle_freeEntry AlecAngle_pickCache[2]
+			deleteItem AlecAngle_pickCache 2
+		)
+	)
+	insertItem e AlecAngle_pickCache 1
+	AlecAngle_pickMesh = e[2]
+	AlecAngle_pickGrid = e[3]
 )
 
 -- the face under a screen point as #(hit pos, face index in AlecAngle_pickMesh), or undefined
@@ -177,7 +197,7 @@ fn AlecAngle_pickToggle =
 
 tool AlecAngle_pickTool
 (
-	fn track =
+	fn track = if AlecTools_hoverMoved viewPoint do
 	(
 		AlecAngle_hover = AlecAngle_hoverAt viewPoint AlecAngle_mode
 		AlecAngle_pickShow()
@@ -188,8 +208,7 @@ tool AlecAngle_pickTool
 		AlecAngle_picked = #()
 		AlecAngle_hover = undefined
 		AlecAngle_overlay = AlecTools_Overlay()
-		registerRedrawViewsCallback AlecAngle_draw
-		AlecTools_watchCtrl AlecAngle_pickToggle
+		AlecTools_beginOverlayTool AlecAngle_draw AlecAngle_pickToggle
 	)
 	on freeMove do track()
 	on mouseMove clickno do track()
@@ -207,11 +226,9 @@ tool AlecAngle_pickTool
 	)
 	on stop do
 	(
-		AlecTools_stopWatchCtrl()
-		unregisterRedrawViewsCallback AlecAngle_draw
 		AlecAngle_overlay = undefined
 		AlecAngle_freePick()
-		redrawViews()
+		AlecTools_endOverlayTool()
 	)
 )
 
@@ -245,7 +262,7 @@ tool AlecAngle_planeTool
 		AlecAngle_planePoints = #()
 		AlecAngle_planeNormal = undefined
 		AlecAngle_overlay = AlecTools_Overlay()
-		registerRedrawViewsCallback AlecAngle_draw
+		AlecTools_beginOverlayTool AlecAngle_draw undefined
 	)
 	on freeMove do track()
 	on mouseMove clickno do track()
@@ -274,10 +291,9 @@ tool AlecAngle_planeTool
 	)
 	on stop do
 	(
-		unregisterRedrawViewsCallback AlecAngle_draw
 		AlecAngle_overlay = undefined
 		AlecAngle_freePick()
-		redrawViews()
+		AlecTools_endOverlayTool()
 	)
 )
 
@@ -332,7 +348,7 @@ fn AlecAngle_dialogStart what plane =
 )
 
 -- the dialog, as the other Alec Tools dialogs: a tool window where the user left it (the first time the middle of Max), Esc closes it;
--- the last choices are kept in the ini
+-- the last choices are kept for this scene (lib/settings.ms)
 
 -- the macro loads this file on every Shift + click: a dialog still open from the last one closes before its rollout is defined again
 if AlecAngle_dialog != undefined and AlecAngle_dialog.open do destroyDialog AlecAngle_dialog
@@ -344,31 +360,33 @@ rollout AlecAngle_dialog "Measure Angle"
 	button btnStart "Start" width:200
 	label lblResult "" align:#left width:200
 	button btnClose "Close" width:200
-	-- Esc does not reach a dialog on its own, so the key is polled; it also works when the viewport has the focus
+	-- Esc closes the caddy, also when the viewport has the focus, but not the Esc that cancels a pick (lib/common.ms)
 	timer tmrEsc interval:100
+	local escWatch = AlecTools_EscWatch()
 
-	fn store =
-	(
-		setINISetting (AlecTools_iniFile()) "MeasureAngle" "what" (rdoWhat.state as string)
-		setINISetting (AlecTools_iniFile()) "MeasureAngle" "plane" (rdoPlane.state as string)
-	)
+	-- the settings are #(what, plane), the states of the two radio buttons
+	fn store = AlecTools_rememberSettings "MeasureAngle" #(rdoWhat.state, rdoPlane.state)
 
 	on AlecAngle_dialog open do
 	(
-		local what = getINISetting (AlecTools_iniFile()) "MeasureAngle" "what"
-		local plane = getINISetting (AlecTools_iniFile()) "MeasureAngle" "plane"
-		if what != "" do rdoWhat.state = what as integer
-		if plane != "" do rdoPlane.state = plane as integer
+		local s = AlecTools_recallSettings "MeasureAngle" #(2, 1)
+		rdoWhat.state = s[1]
+		rdoPlane.state = s[2]
 	)
 	on rdoWhat changed v do store()
 	on rdoPlane changed v do store()
-	on btnStart pressed do AlecAngle_dialogStart rdoWhat.state rdoPlane.state
+	-- the Esc that ended the command may still be down: it counts as already seen
+	on btnStart pressed do
+	(
+		AlecAngle_dialogStart rdoWhat.state rdoPlane.state
+		escWatch.wasDown = true
+	)
 	on btnClose pressed do destroyDialog AlecAngle_dialog
-	on tmrEsc tick do if keyboard.escPressed and not AlecAngle_measuring do destroyDialog AlecAngle_dialog
+	on tmrEsc tick do if AlecTools_escPressed escWatch busy:AlecAngle_measuring do destroyDialog AlecAngle_dialog
 	on AlecAngle_dialog moved p do AlecTools_saveDialogPos "MeasureAngle" p
 )
 
 fn AlecAngle_openDialog =
 (
-	createDialog AlecAngle_dialog 220 170 pos:(AlecTools_dialogPos "MeasureAngle" 220 170) style:#(#style_toolwindow, #style_sysmenu)
+	AlecTools_openCaddy AlecAngle_dialog "MeasureAngle" 220 170
 )

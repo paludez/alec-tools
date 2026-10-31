@@ -49,5 +49,20 @@ fileIn (AlecTools_path "tools/measureAngleDialog.ms")
 	delete m
 	delete b
 
+	-- the pick cache keeps the last 2 objects, most recent first
+	local c1 = box name:"ATtest_cache1"
+	local c2 = box name:"ATtest_cache2"
+	local c3 = box name:"ATtest_cache3"
+	AlecAngle_usePick c1
+	AlecAngle_usePick c2
+	local grid1 = AlecAngle_pickCache[2][3]
+	AlecAngle_usePick c1
+	if not (check "cache: back to an object reuses its grid" (AlecAngle_pickCache.count == 2 and AlecAngle_pickCache[1][1] == c1 and AlecAngle_pickGrid == grid1)) do failures += 1
+	AlecAngle_usePick c3
+	if not (check "cache: a third object drops the oldest" (AlecAngle_pickCache.count == 2 and AlecAngle_pickCache[1][1] == c3 and AlecAngle_pickCache[2][1] == c1)) do failures += 1
+	AlecAngle_freePick()
+	if not (check "cache: freed" (AlecAngle_pickCache.count == 0 and AlecAngle_pickGrid == undefined)) do failures += 1
+	delete #(c1, c2, c3)
+
 	format "measureAngleDialog_test: % failure(s)\n" failures
 )

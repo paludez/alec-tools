@@ -31,3 +31,23 @@ fn AlecTools_dialogPos section w h =
 	local saved = AlecTools_loadDialogPos section
 	AlecTools_clampToScreen (if saved != undefined then saved else (getMAXWindowPos() + getMAXWindowSize() / 2 - [w / 2, h / 2])) w h
 )
+
+-- a caddy: a tool window where the user left it; its rollout saves the place with: on <rollout> moved p do AlecTools_saveDialogPos section p
+fn AlecTools_openCaddy ro section w h =
+(
+	createDialog ro w h pos:(AlecTools_dialogPos section w h) style:#(#style_toolwindow, #style_sysmenu)
+)
+
+-- Esc for a caddy: a dialog does not get the key, so a timer in its rollout polls it with AlecTools_escPressed.
+-- The Esc that cancels a pickbutton reaches the timer only after the command mode has left #pick, so the mode of the previous tick is kept.
+struct AlecTools_EscWatch (wasDown = true, lastMode)
+
+-- true once per new Esc press that does not end a pick; busy = the caddy runs a command that Esc ends, so the key is not for the caddy
+fn AlecTools_escPressed w busy:false =
+(
+	local down = keyboard.escPressed
+	local fresh = down and not w.wasDown and w.lastMode != #pick and not busy
+	w.wasDown = down
+	w.lastMode = toolMode.commandMode
+	fresh
+)

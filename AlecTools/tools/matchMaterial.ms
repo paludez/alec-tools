@@ -14,12 +14,12 @@ fn AlecMatchMat_assign targets source =
 fn AlecMatchMat_execute =
 (
 	if selection.count == 0 then
-		displayTempPrompt "Match Material: selecteaza obiectele tinta mai intai" 3000
+		displayTempPrompt "Match Material: select the target objects first" 3000
 	else
 	(
 		local targets = selection as array
-		local source = pickObject message:"Alec Tools: pick obiectul sursa"
+		local source = pickObject message:"Match Material: pick the source object"
 		if source != undefined do
-			displayTempPrompt (if AlecMatchMat_assign targets source then "Match Material: material copiat" else "Match Material: obiectul ales nu are material") 3000
+			displayTempPrompt (if AlecMatchMat_assign targets source then "Match Material: material copied" else "Match Material: the picked object has no material") 3000
 	)
 )

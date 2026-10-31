@@ -4,10 +4,6 @@
 -- Ctrl switches to Area: the points close into a polygon (a line back to the first point) and its area and perimeter are shown.
 -- Right click or Esc ends the command and the lines and texts go from the viewports.
 
--- the drawing callback of an older load is the old function value, so it is removed by that value before the name is defined again
-global AlecMeasure_draw
-unregisterRedrawViewsCallback AlecMeasure_draw
-
 global AlecMeasure_overlay = undefined
 
 fn AlecMeasure_draw = if AlecMeasure_overlay != undefined do AlecTools_drawOverlay AlecMeasure_overlay
@@ -36,13 +32,6 @@ fn AlecMeasure_formatArea a =
 	(formattedPrint (a / (m * m)) format:".2f") + " m2"
 )
 
-fn AlecMeasure_average points =
-(
-	local sum = [0, 0, 0]
-	for p in points do sum += p
-	sum / points.count
-)
-
 -- the overlay of the points: a line and its length per segment, and the total next to the last point when there are 2 segments or more;
 -- in area mode the closing segment too, and the area and perimeter in the middle of the polygon
 fn AlecMeasure_buildOverlay points area:false =
@@ -58,7 +47,7 @@ fn AlecMeasure_buildOverlay points area:false =
 	if area then
 	(
 		if points.count > 2 do
-			append ov.labels #(AlecMeasure_average points, "Area: " + AlecMeasure_formatArea (AlecMeasure_area points) + \
+			append ov.labels #(AlecTools_average points, "Area: " + AlecMeasure_formatArea (AlecMeasure_area points) + \
 				"  Perimeter: " + units.formatValue (AlecMeasure_total points closed:true))
 	)
 	else if points.count > 2 do
@@ -106,8 +95,7 @@ tool AlecMeasure_tool
 		AlecMeasure_fixed = #()
 		AlecMeasure_cursor = undefined
 		AlecMeasure_overlay = AlecTools_Overlay()
-		registerRedrawViewsCallback AlecMeasure_draw
-		AlecTools_watchCtrl AlecMeasure_toggleArea
+		AlecTools_beginOverlayTool AlecMeasure_draw AlecMeasure_toggleArea
 	)
 	-- the first click comes twice, on press (1) and on release (2): the release is skipped
 	on mousePoint clickno do if clickno != 2 do
@@ -128,10 +116,8 @@ tool AlecMeasure_tool
 	)
 	on stop do
 	(
-		AlecTools_stopWatchCtrl()
-		unregisterRedrawViewsCallback AlecMeasure_draw
 		AlecMeasure_overlay = undefined
-		redrawViews()
+		AlecTools_endOverlayTool()
 	)
 )
 

@@ -8,10 +8,6 @@
 -- Shift + click on the button opens the dialog (tools/measureAngleDialog.ms): edges and faces, and other planes.
 -- Angles are written both ways (a and 180 - a), since two lines make both. Right click or Esc ends and clears the viewports.
 
--- the drawing callback of an older load is the old function value, so it is removed by that value before the name is defined again
-global AlecAngle_draw
-unregisterRedrawViewsCallback AlecAngle_draw
-
 global AlecAngle_overlay = undefined
 
 fn AlecAngle_draw = if AlecAngle_overlay != undefined do AlecTools_drawOverlay AlecAngle_overlay
@@ -171,8 +167,7 @@ tool AlecAngle_tool
 		AlecAngle_fixed = #()
 		AlecAngle_cursor = undefined
 		AlecAngle_overlay = AlecTools_Overlay()
-		registerRedrawViewsCallback AlecAngle_draw
-		AlecTools_watchCtrl AlecAngle_toggleFlat
+		AlecTools_beginOverlayTool AlecAngle_draw AlecAngle_toggleFlat
 	)
 	on freeMove do track()
 	on mouseMove clickno do track()
@@ -186,10 +181,8 @@ tool AlecAngle_tool
 	)
 	on stop do
 	(
-		AlecTools_stopWatchCtrl()
-		unregisterRedrawViewsCallback AlecAngle_draw
 		AlecAngle_overlay = undefined
-		redrawViews()
+		AlecTools_endOverlayTool()
 	)
 )
 

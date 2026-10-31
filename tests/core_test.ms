@@ -1,6 +1,6 @@
 -- Test for the cleanup in core/AlecTools_core.ms. Run in Max:
 --   fileIn @"D:\P R O I E C T E\AI\3DS MAX\tests\core_test.ms"
--- Creates a fake stale global and a fake saved macro copy, checks that the cleanup removes them and keeps the core, then loads lib and the macros again. Prints PASS/FAIL lines to the Listener.
+-- Starts a fake viewport tool and reloads (its Ctrl timer must stop), creates a fake stale global and a fake saved macro copy, checks that the cleanup removes them and keeps the core, then loads lib and the macros again. Prints PASS/FAIL lines to the Listener.
 
 (
 	local failures = 0
@@ -9,6 +9,15 @@
 		format "% %\n" (if ok then "PASS" else "FAIL") label
 		ok
 	)
+
+	-- a viewport tool left running across a reload: its Ctrl timer must be stopped before the purge
+	fn testDraw = ()
+	fn testCtrl = ()
+	AlecTools_beginOverlayTool testDraw testCtrl
+	local timer = AlecTools_ctrlTimer
+	if not (check "beginOverlayTool: the Ctrl timer runs" (timer != undefined and timer.Enabled)) do failures += 1
+	AlecTools_load()
+	if not (check "load: the Ctrl timer of a running tool is stopped" (not timer.Enabled)) do failures += 1
 
 	global AlecATtest_stale = 1
 	AlecTools_purge()

@@ -88,14 +88,14 @@ class IconBrowser(QtWidgets.QDialog):
         self.source = QtWidgets.QComboBox()
         self.source.addItems([label for label, _ in self.sources])
         self.source.currentIndexChanged.connect(self.load)
-        self.search = QtWidgets.QLineEdit(placeholderText="filtru dupa nume, ex. layer")
+        self.search = QtWidgets.QLineEdit(placeholderText="filter by name, e.g. layer")
         self.search.textChanged.connect(self.apply_filter)
         self.icons = QtWidgets.QListWidget(viewMode=QtWidgets.QListView.IconMode, resizeMode=QtWidgets.QListView.Adjust)
         self.icons.setIconSize(QtCore.QSize(24, 24))
         self.icons.setGridSize(QtCore.QSize(44, 44))
         self.icons.setUniformItemSizes(True)
         self.icons.itemClicked.connect(self.copy_reference)
-        self.status = QtWidgets.QLabel("click pe o iconita copiaza referinta")
+        self.status = QtWidgets.QLabel("click an icon to copy its reference")
         self.status.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
 
         top = QtWidgets.QHBoxLayout()
@@ -106,9 +106,15 @@ class IconBrowser(QtWidgets.QDialog):
         layout.addWidget(self.icons)
         layout.addWidget(self.status)
         self.resize(900, 700)
-        self.load(0)
+        # the last source of this scene (lib/settings.ms), as the full Qt list is slow to load
+        last = int(rt.AlecTools_recallSettings("IconBrowser", 0))
+        self.source.blockSignals(True)
+        self.source.setCurrentIndex(last)
+        self.source.blockSignals(False)
+        self.load(last)
 
     def load(self, index):
+        rt.AlecTools_rememberSettings("IconBrowser", index)
         label, loader = self.sources[index]
         entries = loader()
         self.icons.clear()

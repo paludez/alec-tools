@@ -9,7 +9,7 @@
 -- before its rollout and AlecBBox_active are defined again and lose track of it
 if AlecBBox_rollout != undefined and AlecBBox_rollout.open do destroyDialog AlecBBox_rollout
 
--- settings: kept in AlecTools.ini, so the last choice is the next default
+-- settings: the last choice is the next default, for this scene (lib/settings.ms)
 struct AlecBBox_Settings
 (
 	each = false,      -- one cage per object instead of one for the selection
@@ -20,32 +20,10 @@ struct AlecBBox_Settings
 )
 
 -- one run of the tool: the objects to measure (a closed group head stands for its group), the picked object whose axes the Local cages take
--- (undefined until one is picked), and the preview cages
-struct AlecBBox_Session (settings, sources = #(), anchor, cages = #())
+-- (undefined until one is picked), the preview cages, and whether the "BBox helpers" layer was there before the run (Cancel removes it if not)
+struct AlecBBox_Session (settings, sources = #(), anchor, cages = #(), hadLayer = true)
 
 global AlecBBox_active = undefined
-
-fn AlecBBox_readSetting key default =
-(
-	local text = getINISetting (AlecTools_iniFile()) "BBox" key
-	if text == "" then default else if classOf default == BooleanClass then text == "true" else text as float
-)
-
-fn AlecBBox_loadSettings =
-(
-	AlecBBox_Settings each:(AlecBBox_readSetting "each" false) localAxes:(AlecBBox_readSetting "localAxes" false) \
-		offset:(AlecBBox_readSetting "offset" 0.0) addCopy:(AlecBBox_readSetting "addCopy" false) useLayer:(AlecBBox_readSetting "useLayer" true)
-)
-
-fn AlecBBox_saveSettings s =
-(
-	local f = AlecTools_iniFile()
-	setINISetting f "BBox" "each" (s.each as string)
-	setINISetting f "BBox" "localAxes" (s.localAxes as string)
-	setINISetting f "BBox" "offset" (s.offset as string)
-	setINISetting f "BBox" "addCopy" (s.addCopy as string)
-	setINISetting f "BBox" "useLayer" (s.useLayer as string)
-)
 
 -- what gets measured
 
@@ -73,45 +51,58 @@ fn AlecBBox_helpersLayer =
 
 fn AlecBBox_freeName nm = if getNodeByName nm == undefined then nm else uniqueName nm
 
--- a Box around b (in frame) grown by offset on every side; no side gets under 0.1, so a flat object still gets a box.
+-- what one cage is: the box b in frame, grown by offset on every side, its name, color and layer;
+-- nm undefined = the copy with the offset, named after the cage made just before it (which may have got a unique name)
+struct AlecBBox_Spec (b, frame, offset, nm, col, lay)
+
+-- the cage sized and placed on its spec; no side gets under 0.1, so a flat object still gets a box.
 -- The pivot of a Box is at the center of its base, so it goes half the height under the center.
-fn AlecBBox_makeCage b frame offset nm col lay =
+fn AlecBBox_fitCage cage sp =
 (
-	local size = b[2] - b[1] + 2 * [offset, offset, offset]
+	local o = sp.offset
+	local size = sp.b[2] - sp.b[1] + 2 * [o, o, o]
 	size = [amax size.x 0.1, amax size.y 0.1, amax size.z 0.1]
-	local center = (b[1] + b[2]) / 2
-	local tm = copy frame
-	tm.row4 = [center.x, center.y, center.z - size.z / 2] * frame
-	local cage = Box name:(AlecBBox_freeName nm) width:size.x length:size.y height:size.z wirecolor:col
+	local center = (sp.b[1] + sp.b[2]) / 2
+	local tm = copy sp.frame
+	tm.row4 = [center.x, center.y, center.z - size.z / 2] * sp.frame
+	cage.width = size.x
+	cage.length = size.y
+	cage.height = size.z
 	cage.transform = tm
+)
+
+fn AlecBBox_makeCage sp =
+(
+	local cage = Box name:(AlecBBox_freeName sp.nm) wirecolor:sp.col
+	AlecBBox_fitCage cage sp
 	cage.boxmode = true
 	cage.renderable = false
 	cage.castShadows = false
 	cage.receiveShadows = false
-	lay.addNode cage
+	sp.lay.addNode cage
 	cage
 )
 
 -- the cage with the offset, or with addCopy a tight cage plus the copy with the offset (when there is one), named after the cage it was made for
-fn AlecBBox_cagesFor b frame nm lay s =
+fn AlecBBox_specsFor b frame nm lay s =
 (
-	if not s.addCopy then #(AlecBBox_makeCage b frame s.offset nm green lay)
+	if not s.addCopy then #(AlecBBox_Spec b:b frame:frame offset:s.offset nm:nm col:green lay:lay)
 	else
 	(
-		local cages = #(AlecBBox_makeCage b frame 0 nm green lay)
-		if s.offset != 0 do append cages (AlecBBox_makeCage b frame s.offset (cages[1].name + "_p") (AlecBBox_copyColor()) lay)
-		cages
+		local specs = #(AlecBBox_Spec b:b frame:frame offset:0 nm:nm col:green lay:lay)
+		if s.offset != 0 do append specs (AlecBBox_Spec b:b frame:frame offset:s.offset col:(AlecBBox_copyColor()) lay:lay)
+		specs
 	)
 )
 
 -- the Local axes for a cage: those of the picked anchor, or else of node
 fn AlecBBox_axesFrame sess node = AlecTools_localFrame (if sess.anchor != undefined then sess.anchor else node)
 
--- all the cages of a session with its settings
-fn AlecBBox_build sess =
+-- the specs of all the cages of a session with its settings
+fn AlecBBox_specs sess =
 (
 	local s = sess.settings
-	local cages = #()
+	local specs = #()
 	if s.each then
 	(
 		for n in sess.sources do
@@ -119,7 +110,7 @@ fn AlecBBox_build sess =
 			local frame = if s.localAxes then AlecBBox_axesFrame sess n else matrix3 1
 			local nm = n.name + (if s.localAxes then "_bbox_L" else "_bbox_W")
 			local lay = if s.useLayer then AlecBBox_helpersLayer() else n.layer
-			join cages (AlecBBox_cagesFor (AlecTools_bounds (AlecTools_parts n) frame) frame nm lay s)
+			join specs (AlecBBox_specsFor (AlecTools_bounds (AlecTools_parts n) frame) frame nm lay s)
 		)
 	)
 	else
@@ -128,7 +119,19 @@ fn AlecBBox_build sess =
 		for n in sess.sources do join parts (AlecTools_parts n)
 		local frame = if s.localAxes then AlecBBox_axesFrame sess sess.sources[1] else matrix3 1
 		local lay = if s.useLayer then AlecBBox_helpersLayer() else LayerManager.current
-		cages = AlecBBox_cagesFor (AlecTools_bounds parts frame) frame "BBox" lay s
+		specs = AlecBBox_specsFor (AlecTools_bounds parts frame) frame "BBox" lay s
+	)
+	specs
+)
+
+-- all the cages of a session with its settings
+fn AlecBBox_build sess =
+(
+	local cages = #()
+	for sp in AlecBBox_specs sess do
+	(
+		if sp.nm == undefined do sp.nm = cages[cages.count].name + "_p"
+		append cages (AlecBBox_makeCage sp)
 	)
 	cages
 )
@@ -141,10 +144,19 @@ fn AlecBBox_removePreview sess =
 	sess.cages = #()
 )
 
-fn AlecBBox_updatePreview sess =
+-- refit = only the offset changed: the cages there are resized in place when they are still the same ones (a drag on the spinner
+-- would otherwise delete and make every cage again on each step); else, and always without refit, they are made again
+fn AlecBBox_updatePreview sess refit:false =
 (
-	AlecBBox_removePreview sess
-	with undo off (sess.cages = AlecBBox_build sess)
+	local specs = if refit then AlecBBox_specs sess else #()
+	local same = refit and specs.count == sess.cages.count and (for c in sess.cages where not (isValidNode c) collect c).count == 0
+	if same then
+		with undo off (for i = 1 to specs.count do AlecBBox_fitCage sess.cages[i] specs[i])
+	else
+	(
+		AlecBBox_removePreview sess
+		with undo off (sess.cages = AlecBBox_build sess)
+	)
 	redrawViews()
 )
 
@@ -153,6 +165,7 @@ fn AlecBBox_end =
 	if AlecBBox_active != undefined do
 	(
 		AlecBBox_removePreview AlecBBox_active
+		if not AlecBBox_active.hadLayer do LayerManager.deleteLayerByName "BBox helpers"
 		AlecBBox_active = undefined
 		redrawViews()
 	)
@@ -183,8 +196,9 @@ rollout AlecBBox_rollout "BBox"
 	button btnReset "Reset" width:240
 	button btnOk "OK" width:116 across:2
 	button btnCancel "Cancel" width:116
-	-- Esc does not reach a dialog on its own, so the key is polled; it also works when the viewport has the focus
+	-- Esc closes the caddy, also when the viewport has the focus, but not the Esc that cancels a pick (lib/common.ms)
 	timer tmrEsc interval:100
+	local escWatch = AlecTools_EscWatch()
 
 	-- the anchor matters only in Local axes; without one, each cage takes its own object (Each) or the first object (combined)
 	fn showAnchor =
@@ -205,15 +219,15 @@ rollout AlecBBox_rollout "BBox"
 		chkLayer.checked = s.useLayer
 	)
 
-	-- reads the controls, saves them and rebuilds the preview
-	fn store =
+	-- reads the controls, saves them and rebuilds the preview; refit = only the offset changed
+	fn store refit:false =
 	(
 		local s = AlecBBox_Settings each:chkEach.checked localAxes:(rdoAxes.state == 2) offset:spnOffset.value \
 			addCopy:chkCopy.checked useLayer:chkLayer.checked
-		AlecBBox_saveSettings s
+		AlecTools_rememberSettings "BBox" s
 		AlecBBox_active.settings = s
 		showAnchor()
-		AlecBBox_updatePreview AlecBBox_active
+		AlecBBox_updatePreview AlecBBox_active refit:refit
 	)
 
 	on AlecBBox_rollout open do
@@ -235,7 +249,7 @@ rollout AlecBBox_rollout "BBox"
 	)
 	on chkEach changed v do store()
 	on rdoAxes changed v do store()
-	on spnOffset changed v do store()
+	on spnOffset changed v do store refit:true
 	on chkCopy changed v do store()
 	on chkLayer changed v do store()
 	on btnReset pressed do
@@ -249,7 +263,7 @@ rollout AlecBBox_rollout "BBox"
 		destroyDialog AlecBBox_rollout
 	)
 	on btnCancel pressed do destroyDialog AlecBBox_rollout
-	on tmrEsc tick do if keyboard.escPressed do destroyDialog AlecBBox_rollout
+	on tmrEsc tick do if AlecTools_escPressed escWatch do destroyDialog AlecBBox_rollout
 	on AlecBBox_rollout moved p do AlecTools_saveDialogPos "BBox" p
 	on AlecBBox_rollout close do AlecBBox_end()
 )
@@ -280,8 +294,9 @@ fn AlecBBox_run =
 		displayTempPrompt "BBox: nothing to put a cage around" 3000
 	else
 	(
-		AlecBBox_active = AlecBBox_Session settings:(AlecBBox_loadSettings()) sources:sources
+		AlecBBox_active = AlecBBox_Session settings:(AlecTools_recallSettings "BBox" (AlecBBox_Settings())) sources:sources \
+			hadLayer:(LayerManager.getLayerFromName "BBox helpers" != undefined)
 		AlecBBox_updatePreview AlecBBox_active
-		createDialog AlecBBox_rollout 260 230 pos:(AlecTools_dialogPos "BBox" 260 230) style:#(#style_toolwindow, #style_sysmenu)
+		AlecTools_openCaddy AlecBBox_rollout "BBox" 260 230
 	)
 )

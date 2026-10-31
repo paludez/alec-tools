@@ -1,15 +1,6 @@
 -- Move to Layer: the scene side of the popup in moveToLayer.py. Moves the selection into a layer (one undo step)
 -- and creates layers. A closed group always moves whole.
 
-fn AlecMoveLayer_addGroupMembers head out =
-(
-	for c in head.children where isGroupMember c do
-	(
-		appendIfUnique out c
-		AlecMoveLayer_addGroupMembers c out
-	)
-)
-
 -- the nodes that really move: each node lifted to the head of its closed group, plus every member of the groups
 fn AlecMoveLayer_targets nodes =
 (
@@ -18,7 +9,7 @@ fn AlecMoveLayer_targets nodes =
 	(
 		local obj = AlecTools_groupObject n
 		appendIfUnique out obj
-		if isGroupHead obj do AlecMoveLayer_addGroupMembers obj out
+		if isGroupHead obj do for m in AlecTools_groupMembers obj do appendIfUnique out m
 	)
 	out
 )

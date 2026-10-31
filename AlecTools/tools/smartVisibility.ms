@@ -96,5 +96,5 @@ fn AlecSmartVis_execute opName =
 	else if AlecSmartVis_subObjectRun opName then
 		redrawViews()
 	else
-		displayTempPrompt "Smart Visibility: obiectul sau nivelul de sub-obiect nu e suportat" 3000
+		displayTempPrompt "Smart Visibility: this object or sub-object level is not supported" 3000
 )

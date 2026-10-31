@@ -1,5 +1,5 @@
 -- Ctrl as a switch inside a running tool: a tool does not receive keys, so a timer watches Ctrl and calls an action each time it goes down.
--- One tool runs at a time, so one watcher is enough: AlecTools_watchCtrl fn in the tool's start, AlecTools_stopWatchCtrl() in its stop.
+-- One tool runs at a time, so one watcher is enough; tools start and stop it through lib/overlayTool.ms.
 
 global AlecTools_ctrlTimer = undefined
 global AlecTools_ctrlWasDown = false

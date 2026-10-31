@@ -63,19 +63,19 @@ def color_icon(c):
 
 
 def ask_new_layer(default, parent_layer):
-    name, ok = QtWidgets.QInputDialog.getText(GetQMaxMainWindow(), "New Layer", "Nume:", text=default)
+    name, ok = QtWidgets.QInputDialog.getText(GetQMaxMainWindow(), "New Layer", "Name:", text=default)
     name = name.strip()
     if not (ok and name):
         return
     existing = rt.LayerManager.getLayerFromName(name) is not None
     if rt.selection.count == 0:
         rt.AlecMoveLayer_layer(name, parent_layer).current = True
-        message = "layer curent " + name
+        message = "current layer " + name
     else:
         rt.AlecMoveLayer_moveToNew(rt.selection, name, parent_layer)
-        message = "selectia mutata in " + name
+        message = "selection moved to " + name
     if existing:
-        message += " (exista deja, a ramas unde era)"
+        message += " (it already existed and stays where it was)"
     rt.displayTempPrompt("Move to Layer: " + message, 4000)
     rt.redrawViews()
 
@@ -87,7 +87,7 @@ class MoveToLayerPopup(QtWidgets.QWidget):
         self.layers = []
         self.selection_layers = {str(n.layer.name) for n in rt.selection}
 
-        self.search = QtWidgets.QLineEdit(placeholderText="caută layer...")
+        self.search = QtWidgets.QLineEdit(placeholderText="search layer...")
         self.search.textChanged.connect(self.apply_filter)
         self.search.installEventFilter(self)
         new_button = QtWidgets.QPushButton("+ New Layer…")
@@ -181,10 +181,10 @@ class MoveToLayerPopup(QtWidgets.QWidget):
         self.close()
         if rt.selection.count == 0:
             layer.current = True
-            rt.displayTempPrompt("Move to Layer: layer curent " + str(layer.name), 3000)
+            rt.displayTempPrompt("Move to Layer: current layer " + str(layer.name), 3000)
         else:
             count = rt.AlecMoveLayer_move(rt.selection, layer)
-            rt.displayTempPrompt("Move to Layer: %d obiecte in %s" % (count, layer.name), 3000)
+            rt.displayTempPrompt("Move to Layer: %d objects to %s" % (count, layer.name), 3000)
         rt.redrawViews()
 
     # the popup closes first: a Qt popup closes (and is deleted) anyway as soon as the name dialog opens
@@ -231,7 +231,9 @@ class MoveToLayerPopup(QtWidgets.QWidget):
         height = min(MAX_HEIGHT, 90 + rows * self.tree.sizeHintForRow(0))
         self.resize(WIDTH, height)
         pos = QtGui.QCursor.pos()
-        area = QtGui.QGuiApplication.screenAt(pos).availableGeometry()
+        # no screen under the cursor (between monitors): the main one
+        screen = QtGui.QGuiApplication.screenAt(pos) or QtGui.QGuiApplication.primaryScreen()
+        area = screen.availableGeometry()
         x = max(area.left(), min(pos.x() - 20, area.right() - WIDTH))
         y = max(area.top(), min(pos.y() - 20, area.bottom() - height))
         self.move(x, y)
