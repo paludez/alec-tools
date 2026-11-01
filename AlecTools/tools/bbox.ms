@@ -1,13 +1,14 @@
 -- BBox: box cages around the selected objects, drawn as boxes (Display as Box) and not rendered.
--- The button always opens a caddy (AlecBBox_rollout). The cages are a preview rebuilt with undo off on every change; OK makes them again in one undo step, Cancel drops them.
+-- Click: the cages at once with the last settings. Shift + click (or a toolbar right click) opens the caddy (tools/bboxCaddy.py): the cages are a preview
+-- rebuilt with undo off on every change; OK makes them again in one undo step, Cancel drops them.
 -- One cage for the whole selection, or one per object (Each). World: along the world axes. Local: in the axes of an object (rotation without scale):
 -- its own with Each, the first one combined; an object picked in the caddy (the anchor) gives its axes to every cage instead.
 -- Sizes come from nodeGetBoundingBox in the frame of the cage, which is tight on the evaluated geometry.
 -- A closed group counts as one object, in the axes of its head; members of an open group count one by one. Helpers, lights, cameras and targets are skipped.
 
 -- the macro loads this file on every press: a caddy still open from the last press closes first (its preview goes with it),
--- before its rollout and AlecBBox_active are defined again and lose track of it
-if AlecBBox_rollout != undefined and AlecBBox_rollout.open do destroyDialog AlecBBox_rollout
+-- before AlecBBox_active is defined again and loses track of it
+AlecTools_closeCaddy()
 
 -- settings: the last choice is the next default, for this scene (lib/settings.ms)
 struct AlecBBox_Settings
@@ -171,101 +172,78 @@ fn AlecBBox_end =
 	)
 )
 
--- the preview goes and the same cages are made again in one undo step, so Ctrl+Z removes them all
+-- the "BBox helpers" layer once an undo has left it empty; deleting a layer is not undoable, so this comes after the undo (#sceneUndo).
+-- Not the current layer, which cannot be deleted. The callback goes with the layer
+fn AlecBBox_dropEmptyLayer =
+(
+	local lay = LayerManager.getLayerFromName "BBox helpers"
+	local nodes = #()
+	if lay != undefined do lay.nodes &nodes
+	if lay == undefined or nodes.count == 0 and lay != LayerManager.current do
+	(
+		if lay != undefined do LayerManager.deleteLayerByName "BBox helpers"
+		callbacks.removeScripts id:#AlecBBox_layer
+	)
+)
+
+-- after cages are kept: a layer this run made goes again when Ctrl+Z empties it. The callback calls by name, so after a reload
+-- (the purge) it does nothing
+fn AlecBBox_watchLayer sess =
+(
+	if not sess.hadLayer and sess.settings.useLayer do
+	(
+		callbacks.removeScripts id:#AlecBBox_layer
+		callbacks.addScript #sceneUndo "if AlecBBox_dropEmptyLayer != undefined do AlecBBox_dropEmptyLayer()" id:#AlecBBox_layer
+	)
+)
+
+-- the preview goes and the same cages are made again in one undo step, so Ctrl+Z removes them all (and the layer the run made)
 fn AlecBBox_accept =
 (
 	local sess = AlecBBox_active
 	AlecBBox_removePreview sess
 	undo "BBox" on (AlecBBox_build sess)
+	AlecBBox_watchLayer sess
 	AlecBBox_active = undefined
 	redrawViews()
 )
 
--- caddy
+-- what the caddy (tools/bboxCaddy.py) calls
 
-rollout AlecBBox_rollout "BBox"
+-- the preview cages cannot be picked as the anchor
+fn AlecBBox_notPreview node = findItem AlecBBox_active.cages node == 0
+
+-- the text of the anchor button: the anchor matters only in Local axes; without one, each cage takes its own object (Each) or the first one
+fn AlecBBox_anchorText =
 (
-	checkbox chkEach "One cage per object (Each)" align:#left
-	radiobuttons rdoAxes "Axes:" labels:#("World", "Local") columns:2 align:#left
-	fn notPreview node = findItem AlecBBox_active.cages node == 0
-	pickbutton pckAnchor "Local axes of: " width:214 filter:notPreview align:#left across:2
-	button btnClearAnchor "x" width:20 align:#right tooltip:"Back to the axes of each object (or of the first one, combined)"
-	spinner spnOffset "Offset: " range:[-1e6, 1e6, 0] type:#worldunits fieldWidth:70 align:#left
-	checkbox chkCopy "+ copy: tight cage and one with the offset" align:#left
-	checkbox chkLayer "Layer \"BBox helpers\"" align:#left
-	button btnReset "Reset" width:240
-	button btnOk "OK" width:116 across:2
-	button btnCancel "Cancel" width:116
-	-- Esc closes the caddy, also when the viewport has the focus, but not the Esc that cancels a pick (lib/common.ms)
-	timer tmrEsc interval:100
-	local escWatch = AlecTools_EscWatch()
+	local sess = AlecBBox_active
+	if sess.anchor != undefined then sess.anchor.name else if sess.settings.each then "(each its own)" else sess.sources[1].name
+)
 
-	-- the anchor matters only in Local axes; without one, each cage takes its own object (Each) or the first object (combined)
-	fn showAnchor =
-	(
-		local sess = AlecBBox_active
-		pckAnchor.text = "Local axes of: " + (if sess.anchor != undefined then sess.anchor.name \
-			else if sess.settings.each then "(each its own)" else sess.sources[1].name)
-		pckAnchor.enabled = sess.settings.localAxes
-		btnClearAnchor.enabled = sess.settings.localAxes and sess.anchor != undefined
-	)
+-- new settings from the caddy: saved for this scene and the preview rebuilt; refit = only the offset changed
+fn AlecBBox_change each localAxes offset addCopy useLayer refit:false =
+(
+	local s = AlecBBox_Settings each:each localAxes:localAxes offset:offset addCopy:addCopy useLayer:useLayer
+	AlecTools_rememberSettings "BBox" s
+	AlecBBox_active.settings = s
+	AlecBBox_updatePreview AlecBBox_active refit:refit
+)
 
-	fn fill s =
-	(
-		chkEach.checked = s.each
-		rdoAxes.state = if s.localAxes then 2 else 1
-		spnOffset.value = s.offset
-		chkCopy.checked = s.addCopy
-		chkLayer.checked = s.useLayer
-	)
-
-	-- reads the controls, saves them and rebuilds the preview; refit = only the offset changed
-	fn store refit:false =
-	(
-		local s = AlecBBox_Settings each:chkEach.checked localAxes:(rdoAxes.state == 2) offset:spnOffset.value \
-			addCopy:chkCopy.checked useLayer:chkLayer.checked
-		AlecTools_rememberSettings "BBox" s
-		AlecBBox_active.settings = s
-		showAnchor()
-		AlecBBox_updatePreview AlecBBox_active refit:refit
-	)
-
-	on AlecBBox_rollout open do
-	(
-		fill AlecBBox_active.settings
-		showAnchor()
-	)
-	on pckAnchor picked node do
+-- the object whose axes the Local cages take, clicked in the viewport (right click or Esc = keep the one there was)
+fn AlecBBox_pickAnchor =
+(
+	local node = pickObject prompt:"BBox: pick the object whose axes the cages take, right click or Esc = cancel" filter:AlecBBox_notPreview
+	if isValidNode node do
 	(
 		AlecBBox_active.anchor = node
-		showAnchor()
 		AlecBBox_updatePreview AlecBBox_active
 	)
-	on btnClearAnchor pressed do
-	(
-		AlecBBox_active.anchor = undefined
-		showAnchor()
-		AlecBBox_updatePreview AlecBBox_active
-	)
-	on chkEach changed v do store()
-	on rdoAxes changed v do store()
-	on spnOffset changed v do store refit:true
-	on chkCopy changed v do store()
-	on chkLayer changed v do store()
-	on btnReset pressed do
-	(
-		fill (AlecBBox_Settings())
-		store()
-	)
-	on btnOk pressed do
-	(
-		AlecBBox_accept()
-		destroyDialog AlecBBox_rollout
-	)
-	on btnCancel pressed do destroyDialog AlecBBox_rollout
-	on tmrEsc tick do if AlecTools_escPressed escWatch do destroyDialog AlecBBox_rollout
-	on AlecBBox_rollout moved p do AlecTools_saveDialogPos "BBox" p
-	on AlecBBox_rollout close do AlecBBox_end()
+)
+
+fn AlecBBox_clearAnchor =
+(
+	AlecBBox_active.anchor = undefined
+	AlecBBox_updatePreview AlecBBox_active
 )
 
 -- run
@@ -285,18 +263,33 @@ fn AlecBBox_waitForSources =
 	sources
 )
 
--- a caddy that is already open closes first (its preview goes with it), then the tool starts again from the current selection
-fn AlecBBox_run =
+-- without the caddy: the cages with the settings last used in it, in one undo step
+fn AlecBBox_applyDirect sess =
 (
-	if AlecBBox_rollout.open do destroyDialog AlecBBox_rollout
+	local cages = undo "BBox" on (AlecBBox_build sess)
+	AlecBBox_watchLayer sess
+	redrawViews()
+	displayTempPrompt ("BBox: " + cages.count as string + " cage(s)") 3000
+)
+
+-- a caddy that is already open closes first (its preview goes with it), then the tool starts again from the current selection;
+-- showCaddy:false makes the cages at once
+fn AlecBBox_run showCaddy:true =
+(
+	AlecTools_closeCaddy()
 	local sources = AlecBBox_waitForSources()
 	if sources.count == 0 then
 		displayTempPrompt "BBox: nothing to put a cage around" 3000
 	else
 	(
-		AlecBBox_active = AlecBBox_Session settings:(AlecTools_recallSettings "BBox" (AlecBBox_Settings())) sources:sources \
+		local sess = AlecBBox_Session settings:(AlecTools_recallSettings "BBox" (AlecBBox_Settings())) sources:sources \
 			hadLayer:(LayerManager.getLayerFromName "BBox helpers" != undefined)
-		AlecBBox_updatePreview AlecBBox_active
-		AlecTools_openCaddy AlecBBox_rollout "BBox" 260 230
+		if showCaddy then
+		(
+			AlecBBox_active = sess
+			AlecBBox_updatePreview AlecBBox_active
+			python.ExecuteFile (AlecTools_path "tools/bboxCaddy.py")
+		)
+		else AlecBBox_applyDirect sess
 	)
 )

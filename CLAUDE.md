@@ -40,6 +40,7 @@ tools/build_mzp.ps1   builds dist/AlecTools.mzp (build.bat)
 - Macros stay thin: they call a tool function, nothing more.
 - **Editable Poly and the Edit Poly modifier do not have exactly the same commands**, and the same goes for Editable Mesh / Edit Mesh and for a spline shape / the Edit Spline modifier. For example the selection call differs (`obj.EditablePoly.SetSelection` vs `modifier.SetSelection`), and `polyop.*` queries are for Editable Poly, not for the Edit Poly modifier. Never assume a command that works on one works on the other: check it on both before writing the code (a check `.ms` that creates the object, runs the command and prints the result, run by the user), and cover both in the test.
 - One tool at a time: write it, the user tests it in Max, commit only when the user asks.
+- **Never ask, suggest or remind about commits, pushes or building the mzp** (no "commit now?" questions, buttons or recommendations at the end of a task). The user decides when; wait until they say it.
 
 ## Shared code (lib/)
 
@@ -48,38 +49,24 @@ Before writing a helper in a tool, look in `lib/` for one that already does it. 
 What exists, use it instead of rewriting it:
 
 - `lib/settings.ms`: a dialog's choices, `AlecTools_rememberSettings section s` / `AlecTools_recallSettings section default`. They last for the current scene only (new/reset/open scene, a Max restart or a reload go back to the defaults); never put them in the ini.
-- `lib/common.ms`: `AlecTools_iniFile` (dialog positions only), `AlecTools_openCaddy` (opens a dialog where the user left it; the rollout saves the place in `on moved` with `AlecTools_saveDialogPos`), `AlecTools_EscWatch` / `AlecTools_escPressed` (Esc closes a caddy: a `timer` in the rollout, never `keyboard.escPressed` directly, or the Esc that cancels a pick closes the caddy too).
+- `lib/common.ms`: `AlecTools_iniFile` (toolbar dock and caddy positions only), `AlecTools_wantsOptions` (Shift or a toolbar right click: open the caddy), `AlecTools_activeViewRect`, `AlecTools_caddyOpen` / `AlecTools_closeCaddy`, `AlecTools_smeView` (a Slate view by name, made and made active).
+- `lib/AlecTools_caddy.py`: the Max-style Qt caddy (also `without_escape`, `escape_down`, `evaluate`) every tool with options uses (no MAXScript rollouts). Subclass `Caddy(section, title, okTip, cancelTip)`, add rows in `build()` with `add_choice`, `add_toggle(s)`, `add_value`, `add_pick`, `add_button`, override `ok()` and `closed()`; open with `show()`. It opens in the active viewport where it was left, Esc/Enter work, only one is open at a time.
 - `lib/nodes.ms`: groups (`AlecTools_parts`, `AlecTools_groupObject`, `AlecTools_inClosedGroup`, `AlecTools_isClosedHead`), `AlecTools_isMeasurable`, `AlecTools_localFrame` (rotation without scale), `AlecTools_bounds` (tight bounds in any frame: use it, not `node.min/max` or `selection.center`), `AlecTools_rayHit` / `AlecTools_surfaceAt` / `AlecTools_objectAt` (what is under the mouse).
 - `lib/overlay.ms`: `AlecTools_Overlay`, `AlecTools_addBox`, `AlecTools_addDimension`, `AlecTools_drawOverlay` for everything a tool draws in the viewports.
 - `lib/overlayTool.ms`: every `tool` that draws calls `AlecTools_beginOverlayTool drawFn ctrlFn` in `on start` and `AlecTools_endOverlayTool()` in `on stop`; never `registerRedrawViewsCallback` or `AlecTools_watchCtrl` directly, or a reload cannot end it.
 - `lib/ctrlKey.ms`: Ctrl as a switch inside a running tool (through overlayTool).
 
-Patterns a new tool follows, so tools behave alike:
-
-- A tool with options and a preview is a caddy (see `bbox.ms`, `distribute.ms`): settings struct kept with lib/settings.ms, a session struct, preview with `undo off`, OK redoes it in one `undo "Name" on`, Cancel/Esc/close restores. The tool file closes a caddy still open from the last load before defining its rollout again.
-- A tool that measures in the viewport is a `tool` started with `startTool` (see `measure*.ms`): the first click comes twice, skip `clickno == 2`; right click/Esc ends and clears.
-- Status messages go to `displayTempPrompt` / `replacePrompt`, starting with the tool's name, in English like the rest of the UI. Lengths through `units.formatValue`.
-- A macro gets an `iconName:` when the user wants one (find it with the Icon Browser macro); shortcut-only macros can go without.
-- `audit.md` lists known problems and planned cleanups; strike through an item when it is done, and check it before adding a helper it already plans.
+Patterns every new tool follows (caddy, toolbar, measuring tools, prompts, icons) are in `docs/patterns.md`: read it before writing or changing a tool.
 
 ## Testing
 
 The user runs the tests and checks in Max, not Claude. Claude writes the `.ms` file and gives the `fileIn @"..."` line; the user runs it and pastes the Listener output back. Do not run anything through the `3dsmax-mcp` MCP server unless the user asks for it. Do not claim a tool works before the user has run its test. Test files live in `tests/` and create and delete their own temporary objects. Do not save the user's scene.
 
-## Verified in Max 2027 (add only what has been checked)
+**Every test ends by printing the number of failures and then one `FAIL <label>` line per failed check, as its last lines**, so the user pastes back only those and not the whole output. Collect the failed labels in the test's `check` function and print them after the cleanup.
 
-- `getDir #userScripts` and `getDir #userStartupScripts` exist.
-- A parenthesized block is compiled before a `fileIn` inside it runs, so a function defined by that `fileIn` must be called with `execute "fn()"` from the same block.
-- `sort` works on an array of strings.
-- `toolMode.commandMode` is `#pick` while a pickbutton picks. The Esc that cancels the pick shows in a 50 ms timer only after the mode has already left `#pick`.
-- A global name used in a function binds to the global that existed when the function was compiled. After `globalVars.remove` (the purge) and a new definition, that function still sees the removed one (undefined). The core therefore calls lib functions by name: `(globalVars.get #name)()`.
-- Edit Poly modifier: `SetSelection` returns true but the selection stays empty; use `modifier.Select #Vertex bits` (adds to the selection, the bits go in a variable because the argument is by reference) and `modifier.GetSelection`. `ConvertSelection #Face #Vertex` fills the vertex selection and keeps the face selection and the sub-object level. `modifier.MoveSelection delta` without `axis:` moves in world space; read positions back with `modifier.GetVertex v node:node` (world). Editable Poly: `polyop.moveVert node verts delta node:node` moves in world space.
-- `nodeGetBoundingBox node frame` is tight on the evaluated geometry (modifiers included) in any frame and takes ~0 ms on 244k vertices. `node.min`/`node.max` is not tight on rotated objects.
-- Max saves every `macroScript` it loads as `<category>-<name>.mcr` in `getDir #userMacros` and loads that copy again at startup. A renamed macro therefore showed up twice (old copy + new). `AlecTools_load` deletes the `Alec Tools-*` copies before loading the macros, which Max then saves again. The stale entry stays in the running session until Max restarts.
-- `intersectRayScene` does not hit back faces (a ray from inside a box finds nothing), and a ray that starts 100000 cm away hits nothing even with geometry on its path; from ~1000 cm it works. Its hit ray's `dir` is the surface normal.
-- `intersectRayEx node ray` works only on Editable Mesh (gives `#(ray, face, bary)`); on a primitive, Editable Poly or a modifier stack it gives undefined. `RayMeshGridIntersect` (`Initialize 10`, `addNode`, `buildGrid`, `intersectRay pos dir false`, `getHitFace 1`) works on all of them, on the evaluated mesh, in world space, ~1-14 ms to build + cast on a box; its face index matches `snapshotAsMesh node`, whose verts are in world space and whose `getEdgeVis` marks the hidden diagonals.
-- Layers: `LayerManager.newLayerFromName`, `layer.setParent`/`getParent` (undefined on a top-level layer)/`getNumChildren`/`getChild i`, `layer.addNode node`, `layer.nodes &arr`, and read/write `isHidden`, `isFrozen`, `renderable`, `wireColor` all work; `on` is the inverse of `isHidden`. `addNode` inside `undo on` is undone by `max undo`; it restores the layer the undo system last recorded, so a move done outside an undo context is skipped.
-- macroScript `iconName:` takes a Qt resource icon in every form tried: short (`"MainUI/Snow"`, under `:/Icons`, no size or extension), full path (`":/Icons/MainUI/Snow_24.png"`) and a plugin's resource (`":/chaos/icons/show_layers.svg"`, V-Ray only). The Customize UI icon picker does not list Qt resources.
-- Python: PySide6 6.8.3 and `qtmax.GetQMaxMainWindow()` are available.
-- In a `tool` started with `startTool`, `on mousePoint clickno` fires twice for the first click (press = 1, release = 2, same point), then once per click (3, 4, ...).
-- A `registerRedrawViewsCallback` function draws in every viewport with `gw.setTransform (matrix3 1)`, `gw.setColor #line`, `gw.polyline`, `gw.text` (world points), `gw.enlargeUpdateRect #whole`, `gw.updateScreen()`; the drawing stays in place when orbiting and goes with `unregisterRedrawViewsCallback fn` + `redrawViews()`.
+Claude has a standalone Python 3.11 in `.tools/python/` (pip, `pyflakes`, `PySide6` 6.8.3), kept out of git through `.git/info/exclude`, outside Max. Use it for static checks of the `.py` files: `.tools/python/python.exe -m pyflakes AlecTools`. It has no `pymxs` or `qtmax`, so code that needs Max still has to be tested in Max by the user.
+
+## Verified in Max 2027
+
+Facts checked in Max (MAXScript/Qt quirks, API behavior) are in `docs/max-verified.md`. Read the relevant ones before touching that area (Edit Poly, rays, layers, tool mouse events, viewport drawing, Qt focus/shortcuts, macro saving), and add new ones there, only after they have been checked.
+- The most important one: **never call MAXScript from a Qt or .NET timer** (it crashed Max); refresh from Max callbacks instead.

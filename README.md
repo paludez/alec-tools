@@ -23,6 +23,7 @@ All of them are in **Customize User Interface**, category **Alec Tools**, where 
 | **Smart Hide**, **Smart Hide Unsel**, **Smart Unhide** | Hides the selection, hides everything not selected, shows everything. Works on objects and on sub-objects (Editable Poly, Edit Poly, Editable Mesh, Edit Mesh, splines). |
 | **Get Materials** | Puts the materials of the selected objects in the Slate Material Editor, on the "Get Materials" tab. |
 | **Match Material** | Copies the material of a picked object to the selected objects, in one undo step. |
+| **USD MaterialX** | After importing a Blender USD exported with "MaterialX Network" ticked, pick the same file: each Principled BSDF becomes an OpenPBR material (OSL Uber Bitmap textures) on the objects that use it, in one undo step. Other Blender shaders keep the imported material; what did not map is listed in the Listener. Needs the USD for 3ds Max plugin. |
 
 ### Placement
 
@@ -51,4 +52,5 @@ All of them end with a right click or Esc, and their lines and texts leave the v
 | --- | --- |
 | **Move to Layer** | A popup at the cursor with the layer tree, like M in Blender. Clicking a name moves the selection there; with nothing selected it makes the layer current. You can toggle hide / freeze / render and filter by typing. |
 | **Icon Browser** | The icons that ship with Max. Filter by name; a click copies the icon's reference. |
+| **Export Settings**, **Import Settings** | Move the shortcuts, quad menus, menus and toolbars of Max between PCs (either way) as a folder. Export asks where to make the `AlecSettings` folder. Import takes that folder, keeps a backup of what this Max has (in `AlecSettings.backup`), and a small `.cmd` replaces the files when Max closes, then opens Max again. Needs only `cmd.exe`. |
 | **Reload Alec Tools** | Reloads the tools without restarting Max. |

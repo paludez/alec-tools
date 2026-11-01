@@ -1,5 +1,5 @@
 -- Mid Between: the selection (picked first if there is none) moves so its center lands on the middle of some points.
--- Click: pick the points, right click applies. Shift+Click: the same with a caddy (AlecMid_rollout); right click only ends the picking, OK applies, Cancel drops it.
+-- Click: pick the points, right click applies. Shift+Click (or a toolbar right click): the same with a caddy (tools/midBetweenCaddy.py); right click only ends the picking, OK applies, Cancel drops it.
 -- A red dummy shows where the center of the selection will land and follows every point and setting; nothing moves until the end.
 -- Points: clicked with snaps (Esc cancels) or taken from the pivots of picked objects (right click or Esc ends the picking).
 -- Objects: the center of the selection is the average of the pivots, or the center of its bounding box (settings.bounds).
@@ -277,61 +277,19 @@ fn AlecMid_collectPoints sess =
 	if sess.settings.fromObjects then AlecMid_pickObjectPoints sess else AlecMid_pickPoints sess
 )
 
--- caddy (Shift+Click)
+-- what the caddy (tools/midBetweenCaddy.py) calls
 
-rollout AlecMid_rollout "Mid Between"
+-- new settings: saved for this scene, the preview follows
+fn AlecMid_change bounds targetBounds fromObjects x y z =
 (
-	radiobuttons rdoSource "Selection center:" labels:#("Average", "Bounding box") columns:2 align:#left
-	radiobuttons rdoTarget "Move to:" labels:#("Average", "Bounding box") columns:2 align:#left
-	radiobuttons rdoPoints "Points:" labels:#("Snap clicks", "Object pivots") columns:2 align:#left
-	label lblAxes "Move on axes:" align:#left across:4
-	checkbox chkX "X" checked:true
-	checkbox chkY "Y" checked:true
-	checkbox chkZ "Z" checked:true
-	button btnRepick "Pick other points" width:240
-	button btnOk "OK" width:116 across:2
-	button btnCancel "Cancel" width:116
-
-	-- reads the controls, saves them and moves the preview
-	fn store =
-	(
-		local s = AlecMid_Settings bounds:(rdoSource.state == 2) targetBounds:(rdoTarget.state == 2) \
-			fromObjects:(rdoPoints.state == 2) x:chkX.checked y:chkY.checked z:chkZ.checked
-		AlecTools_rememberSettings "MidBetween" s
-		AlecMid_active.settings = s
-		AlecMid_updatePreview AlecMid_active
-	)
-
-	on AlecMid_rollout open do
-	(
-		local s = AlecMid_active.settings
-		rdoSource.state = if s.bounds then 2 else 1
-		rdoTarget.state = if s.targetBounds then 2 else 1
-		rdoPoints.state = if s.fromObjects then 2 else 1
-		chkX.checked = s.x
-		chkY.checked = s.y
-		chkZ.checked = s.z
-	)
-	on rdoSource changed v do store()
-	on rdoTarget changed v do store()
-	on chkX changed v do store()
-	on chkY changed v do store()
-	on chkZ changed v do store()
-	on rdoPoints changed v do
-	(
-		store()
-		AlecMid_collectPoints AlecMid_active
-	)
-	on btnRepick pressed do AlecMid_collectPoints AlecMid_active
-	on btnOk pressed do
-	(
-		AlecMid_accept()
-		destroyDialog AlecMid_rollout
-	)
-	on btnCancel pressed do destroyDialog AlecMid_rollout
-	on AlecMid_rollout moved p do AlecTools_saveDialogPos "MidBetween" p
-	on AlecMid_rollout close do AlecMid_end()
+	local s = AlecMid_Settings bounds:bounds targetBounds:targetBounds fromObjects:fromObjects x:x y:y z:z
+	AlecTools_rememberSettings "MidBetween" s
+	AlecMid_active.settings = s
+	AlecMid_updatePreview AlecMid_active
 )
+
+-- a new picking from nothing, by clicks or by object pivots as the settings say
+fn AlecMid_repick = AlecMid_collectPoints AlecMid_active
 
 -- run
 
@@ -345,7 +303,7 @@ fn AlecMid_waitForSelection =
 
 fn AlecMid_run s showCaddy =
 (
-	if AlecMid_active != undefined do destroyDialog AlecMid_rollout
+	AlecTools_closeCaddy()
 	if not (AlecMid_waitForSelection()) then
 		displayTempPrompt "Mid Between: nothing selected" 3000
 	else
@@ -355,11 +313,11 @@ fn AlecMid_run s showCaddy =
 		(
 			AlecMid_active = sess
 			if showCaddy do
-				AlecTools_openCaddy AlecMid_rollout "MidBetween" 260 220
+				python.ExecuteFile (AlecTools_path "tools/midBetweenCaddy.py")
 			AlecMid_collectPoints sess
 			if sess.points.count == 0 then
 			(
-				destroyDialog AlecMid_rollout
+				AlecTools_closeCaddy()
 				AlecMid_end()
 			)
 			else if not showCaddy do AlecMid_accept()

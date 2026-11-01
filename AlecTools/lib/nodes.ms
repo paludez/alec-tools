@@ -72,6 +72,19 @@ fn AlecTools_bounds nodes frame =
 	AlecTools_pointsBounds corners
 )
 
+-- where Max's Use Center turns or scales these nodes about: the center of their bounds (Selection Center), the world origin
+-- (Transform Coordinate Center), or undefined for each node's own pivot (Pivot Point Center)
+fn AlecTools_useCenter nodes = case getCoordCenter() of
+(
+	#selection: (local b = AlecTools_bounds nodes (matrix3 1); (b[1] + b[2]) / 2)
+	#system: [0, 0, 0]
+	default: undefined
+)
+
+-- applies the world matrix m (a rotation or a scale, no translation) to a node about a world point
+fn AlecTools_transformAbout n m center =
+	n.transform = n.transform * transMatrix (-center) * m * transMatrix center
+
 -- the object a node belongs to: the head of its closed group, or the node itself
 fn AlecTools_groupObject node =
 (

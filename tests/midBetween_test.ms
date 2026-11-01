@@ -202,35 +202,6 @@ fileIn (AlecTools_path "tools/midBetween.ms")
 	subObjectLevel = 0
 	delete pm
 
-	-- caddy position: remembered in the ini, always pulled back inside the work area; the user's own saved position is restored afterwards
-	local screenClass = dotNetClass "System.Windows.Forms.Screen"
-	local area = screenClass.PrimaryScreen.WorkingArea
-	local ini = AlecTools_iniFile()
-	local keepX = getINISetting ini "MidBetween" "dialogX"
-	local keepY = getINISetting ini "MidBetween" "dialogY"
-	local inside = true
-	for c in #([area.Left, area.Top], [area.Right - 1, area.Bottom - 1], [area.Right - 1, area.Top], [area.Left, area.Bottom - 1], [area.Left + 400, area.Top + 300], [-9000, -9000], [90000, 90000]) do
-	(
-		local p = AlecTools_clampToScreen c 260 220
-		local a = (screenClass.FromPoint (dotNetObject "System.Drawing.Point" p.x p.y)).WorkingArea
-		if p.x < a.Left or p.y < a.Top or p.x + 260 > a.Right or p.y + 220 > a.Bottom do inside = false
-	)
-	if not (check "dialog position: clamped into a work area for corners, middle and far off-screen points" inside) do failures += 1
-	AlecTools_saveDialogPos "MidBetween" [area.Left + 123, area.Top + 45]
-	local back = (AlecTools_loadDialogPos "MidBetween")
-	if not (check "dialog position: saved and read back" (back != undefined and back.x == area.Left + 123 and back.y == area.Top + 45)) do failures += 1
-	if not (check "dialog position: a saved position inside the screen is used as it is" (near (AlecTools_dialogPos "MidBetween" 260 220) back)) do failures += 1
-	AlecTools_saveDialogPos "MidBetween" [-9000, -9000]
-	local pulled = AlecTools_dialogPos "MidBetween" 260 220
-	if not (check "dialog position: a saved position off every screen is pulled back" (pulled.x > -9000 and pulled.y > -9000)) do failures += 1
-	setINISetting ini "MidBetween" "dialogX" ""
-	setINISetting ini "MidBetween" "dialogY" ""
-	local first = AlecTools_dialogPos "MidBetween" 260 220
-	local firstArea = (screenClass.FromPoint (dotNetObject "System.Drawing.Point" first.x first.y)).WorkingArea
-	if not (check "dialog position: with nothing saved it still lands inside a work area" ((AlecTools_loadDialogPos "MidBetween") == undefined and first.x >= firstArea.Left and first.y >= firstArea.Top and first.x + 260 <= firstArea.Right and first.y + 220 <= firstArea.Bottom)) do failures += 1
-	setINISetting ini "MidBetween" "dialogX" keepX
-	setINISetting ini "MidBetween" "dialogY" keepY
-
 	-- the whole run with no point given: a timer ends the picking like a right click, so no click is needed
 	-- (global because the timer handler cannot see the locals of this block)
 	global AT_timer = dotNetObject "System.Windows.Forms.Timer"
@@ -243,7 +214,7 @@ fileIn (AlecTools_path "tools/midBetween.ms")
 	AlecMid_run (AlecMid_Settings()) true
 	AT_timer.stop()
 	if not (check "run: no points ends the command, in both modes, with nothing moved or left behind" (AlecMid_active == undefined and near runBox.pos [7,8,9] and (for o in objects where o.name == "AlecMid_preview" collect o).count == 0)) do failures += 1
-	if not (check "run: the caddy is closed after a run without points" (not AlecMid_rollout.open)) do failures += 1
+	if not (check "run: the caddy is closed after a run without points" (AlecTools_caddyOpen != "MidBetween")) do failures += 1
 
 	-- picking again clears the points and the dummy first; a picking that gives nothing leaves them cleared, and accept then moves nothing
 	local again = AlecMid_Session settings:(AlecMid_Settings()) points:#([30,40,50])

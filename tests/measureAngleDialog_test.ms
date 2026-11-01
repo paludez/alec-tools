@@ -1,8 +1,8 @@
--- Test for tools/measureAngleDialog.ms (the geometry behind the Shift + click dialog). Run in Max:
+-- Test for tools/measureAngleDialog.ms (the geometry behind the Shift + click caddy). Run in Max:
 --   fileIn @"D:\P R O I E C T E\AI\3DS MAX\tests\measureAngleDialog_test.ms"
 -- Checks the angle between faces, faces cut by a plane, and the real edges of a mesh face; makes a temporary box and deletes it.
--- Prints PASS/FAIL lines to the Listener. Not covered, try by hand: the dialog, hovering and clicking edges and faces,
--- picking a plane by 3 points or by a face, Ctrl and that the result shows in the dialog.
+-- Prints PASS/FAIL lines to the Listener. Not covered, try by hand: the caddy (tests/measureAngleCaddy_test.ms opens it), hovering and clicking edges and faces,
+-- picking a plane by 3 points or by a face, Ctrl and that the result shows in the caddy.
 
 -- outside the block below: a block is compiled before a fileIn inside it runs
 fileIn (AlecTools_path "tools/measureAngle.ms")

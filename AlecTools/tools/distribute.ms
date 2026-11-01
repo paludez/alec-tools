@@ -1,6 +1,6 @@
 -- Distribute: the selected objects are spread along one axis, with equal steps between a reference point of each (Positions)
 -- or with equal space between their bounding boxes (Gaps).
--- The button always opens a caddy (AlecDist_rollout). The objects move live as a preview with undo off, every change starts again
+-- Click: distributes at once with the last settings. Shift + click (or a toolbar right click) opens the caddy (tools/distributeCaddy.py): the objects move live as a preview with undo off, every change starts again
 -- from where they were; OK moves them again in one undo step, Cancel or Esc puts them back.
 -- The step (or gap) starts at the value that keeps the two ends in place; a typed value is used as a fixed step until the mode, axis or reference changes, or Auto.
 -- Axes: World, or Local = the axes (rotation without scale) of any object picked for them, or else of the anchor; with neither, Local uses the world.
@@ -12,8 +12,8 @@
 -- A child of a selected object follows its parent and is not moved on its own; camera and light targets are skipped.
 
 -- the macro loads this file on every press: a caddy still open from the last press closes first (its objects go back),
--- before its rollout and AlecDist_active are defined again and lose track of it
-if AlecDist_rollout != undefined and AlecDist_rollout.open do destroyDialog AlecDist_rollout
+-- before AlecDist_active is defined again and loses track of it
+AlecTools_closeCaddy()
 -- the drawing callback of an older load is the old function value, so it is removed by that value before the name is defined again
 global AlecDist_draw
 unregisterRedrawViewsCallback AlecDist_draw
@@ -333,182 +333,113 @@ fn AlecDist_accept =
 	redrawViews()
 )
 
--- caddy
+-- what the caddy (tools/distributeCaddy.py) calls. Each change updates the preview and gives false when fewer than 2 objects are left
+-- (the caddy then closes)
 
-rollout AlecDist_rollout "Distribute"
+fn AlecDist_isSource node = findItem AlecDist_active.sources node > 0
+
+fn AlecDist_anchorText = if AlecDist_active.anchor != undefined then AlecDist_active.anchor.name else "none"
+
+fn AlecDist_axesText =
 (
-	radiobuttons rdoMode "Mode:" labels:#("Positions (equal steps)", "Gaps (equal space)") columns:2 align:#left
-	radiobuttons rdoAxis "Axis:" labels:#("X", "Y", "Z") columns:3 align:#left across:2
-	radiobuttons rdoSpace "Axes:" labels:#("World", "Local") columns:2 align:#left
-	pickbutton pckAxes "Local axes of: the anchor" width:254 align:#left across:2
-	button btnClearAxes "x" width:20 align:#right tooltip:"Back to the axes of the anchor"
-	radiobuttons rdoRef "Reference:" labels:#("Min", "Center", "Pivot", "Max") columns:4 align:#left
-	spinner spnStep "Step: " range:[0, 1e6, 0] type:#worldunits fieldWidth:60 align:#left across:2
-	spinner spnGap "Gap: " range:[-1e6, 1e6, 0] type:#worldunits fieldWidth:60 align:#left
-	button btnAuto "Auto: keep the two ends in place" width:280
-	fn isSource node = findItem AlecDist_active.sources node > 0
-	pickbutton pckAnchor "Anchor: none" width:254 filter:isSource align:#left across:2
-	button btnClearAnchor "x" width:20 align:#right tooltip:"No anchor: the lowest object stays in place"
-	label lblAlign "Align to anchor on:" align:#left across:4
-	checkbox chkX "X" align:#right
-	checkbox chkY "Y" align:#right
-	checkbox chkZ "Z" align:#right
-	radiobuttons rdoAlignRef "Align reference:" labels:#("Min", "Center", "Pivot", "Max") columns:4 align:#left
-	checkbox chkBlend "Blend rotations: lowest > anchor > highest" align:#left
-	checkbox chkDims "Show dimensions in the viewports" align:#left
-	button btnReset "Reset" width:280
-	button btnOk "OK" width:136 across:2
-	button btnCancel "Cancel" width:136
-	-- Esc closes the caddy, also when the viewport has the focus, but not the Esc that cancels a pick (lib/common.ms)
-	timer tmrEsc interval:100
-	local escWatch = AlecTools_EscWatch()
+	local sess = AlecDist_active
+	if sess.axesOf != undefined then sess.axesOf.name else if sess.anchor != undefined then "the anchor" else "none (world)"
+)
 
-	-- what applies right now is enabled; the spinners show the step and the gap in use
-	fn showState =
-	(
-		local sess = AlecDist_active
-		local s = sess.settings
-		local hasAnchor = sess.anchor != undefined
-		spnStep.enabled = not s.gaps
-		spnGap.enabled = s.gaps
-		rdoRef.enabled = not s.gaps
-		spnStep.value = sess.step
-		spnGap.value = sess.gap
-		pckAxes.text = "Local axes of: " + (if sess.axesOf != undefined then sess.axesOf.name else if hasAnchor then "the anchor" else "none (world)")
-		pckAxes.enabled = s.localAxes
-		btnClearAxes.enabled = s.localAxes and sess.axesOf != undefined
-		pckAnchor.text = "Anchor: " + (if hasAnchor then sess.anchor.name else "none")
-		btnClearAnchor.enabled = hasAnchor
-		lblAlign.enabled = hasAnchor
-		chkX.enabled = hasAnchor and s.axis != 1
-		chkY.enabled = hasAnchor and s.axis != 2
-		chkZ.enabled = hasAnchor and s.axis != 3
-		rdoAlignRef.enabled = hasAnchor
-		chkBlend.enabled = hasAnchor
-	)
+-- new settings: saved for this scene; refill = the step and the gap are worked out again
+fn AlecDist_change gaps axis localAxes reference alignX alignY alignZ alignReference blend showDims refill:false =
+(
+	local s = AlecDist_Settings gaps:gaps axis:axis localAxes:localAxes reference:reference \
+		alignX:alignX alignY:alignY alignZ:alignZ alignReference:alignReference blend:blend showDims:showDims
+	AlecTools_rememberSettings "Distribute" s
+	AlecDist_active.settings = s
+	if refill do AlecDist_active.autoFill = true
+	AlecDist_updatePreview AlecDist_active
+)
 
-	fn update =
-	(
-		if AlecDist_updatePreview AlecDist_active then showState()
-		else
-		(
-			displayTempPrompt "Distribute: fewer than 2 objects left" 3000
-			destroyDialog AlecDist_rollout
-		)
-	)
+-- a typed step or gap is used as it is until Auto
+fn AlecDist_setStep v =
+(
+	AlecDist_active.step = v
+	AlecDist_active.autoFill = false
+	AlecDist_updatePreview AlecDist_active
+)
 
-	fn fill s =
-	(
-		rdoMode.state = if s.gaps then 2 else 1
-		rdoAxis.state = s.axis
-		rdoSpace.state = if s.localAxes then 2 else 1
-		rdoRef.state = s.reference
-		chkX.checked = s.alignX
-		chkY.checked = s.alignY
-		chkZ.checked = s.alignZ
-		rdoAlignRef.state = s.alignReference
-		chkBlend.checked = s.blend
-		chkDims.checked = s.showDims
-	)
+fn AlecDist_setGap v =
+(
+	AlecDist_active.gap = v
+	AlecDist_active.autoFill = false
+	AlecDist_updatePreview AlecDist_active
+)
 
-	-- reads the controls, saves them and updates the preview; refill = the step and the gap are worked out again
-	fn store refill:false =
-	(
-		local s = AlecDist_Settings gaps:(rdoMode.state == 2) axis:rdoAxis.state localAxes:(rdoSpace.state == 2) reference:rdoRef.state \
-			alignX:chkX.checked alignY:chkY.checked alignZ:chkZ.checked alignReference:rdoAlignRef.state blend:chkBlend.checked showDims:chkDims.checked
-		AlecTools_rememberSettings "Distribute" s
-		AlecDist_active.settings = s
-		if refill do AlecDist_active.autoFill = true
-		update()
-	)
+fn AlecDist_auto =
+(
+	AlecDist_active.autoFill = true
+	AlecDist_updatePreview AlecDist_active
+)
 
-	-- with Local axes a change of the object they come from changes the axes, so the step and the gap are worked out again
-	fn axesChanged oldAxes =
-	(
-		if AlecDist_active.settings.localAxes and AlecDist_axesNode AlecDist_active != oldAxes do AlecDist_active.autoFill = true
-		update()
-	)
+-- with Local axes a change of the object they come from changes the axes, so the step and the gap are worked out again
+fn AlecDist_axesChanged oldAxes =
+(
+	if AlecDist_active.settings.localAxes and AlecDist_axesNode AlecDist_active != oldAxes do AlecDist_active.autoFill = true
+	AlecDist_updatePreview AlecDist_active
+)
 
-	fn setAnchor node =
-	(
-		local oldAxes = AlecDist_axesNode AlecDist_active
-		AlecDist_active.anchor = node
-		axesChanged oldAxes
-	)
+fn AlecDist_setAnchor node =
+(
+	local oldAxes = AlecDist_axesNode AlecDist_active
+	AlecDist_active.anchor = node
+	AlecDist_axesChanged oldAxes
+)
 
-	fn setAxesOf node =
-	(
-		local oldAxes = AlecDist_axesNode AlecDist_active
-		AlecDist_active.axesOf = node
-		axesChanged oldAxes
-	)
+fn AlecDist_setAxesOf node =
+(
+	local oldAxes = AlecDist_axesNode AlecDist_active
+	AlecDist_active.axesOf = node
+	AlecDist_axesChanged oldAxes
+)
 
-	on AlecDist_rollout open do
-	(
-		fill AlecDist_active.settings
-		showState()
-	)
-	on rdoMode changed v do store refill:true
-	on rdoAxis changed v do store refill:true
-	on rdoSpace changed v do store refill:true
-	on rdoRef changed v do store refill:true
-	on chkX changed v do store()
-	on chkY changed v do store()
-	on chkZ changed v do store()
-	on rdoAlignRef changed v do store()
-	on chkBlend changed v do store()
-	on chkDims changed v do store()
-	on spnStep changed v do
-	(
-		AlecDist_active.step = v
-		AlecDist_active.autoFill = false
-		update()
-	)
-	on spnGap changed v do
-	(
-		AlecDist_active.gap = v
-		AlecDist_active.autoFill = false
-		update()
-	)
-	on btnAuto pressed do
-	(
-		AlecDist_active.autoFill = true
-		update()
-	)
-	on pckAnchor picked node do setAnchor node
-	on btnClearAnchor pressed do setAnchor undefined
-	on pckAxes picked node do setAxesOf node
-	on btnClearAxes pressed do setAxesOf undefined
-	on btnReset pressed do
-	(
-		fill (AlecDist_Settings())
-		store refill:true
-	)
-	on btnOk pressed do
-	(
-		AlecDist_accept()
-		destroyDialog AlecDist_rollout
-	)
-	on btnCancel pressed do destroyDialog AlecDist_rollout
-	on tmrEsc tick do if AlecTools_escPressed escWatch do destroyDialog AlecDist_rollout
-	on AlecDist_rollout moved p do AlecTools_saveDialogPos "Distribute" p
-	on AlecDist_rollout close do AlecDist_end()
+-- picked in the viewport, among the objects (the anchor) or any object (the axes); right click or Esc keeps the one there was
+fn AlecDist_pickAnchor =
+(
+	local node = pickObject prompt:"Distribute: pick the anchor among the objects, right click or Esc = cancel" filter:AlecDist_isSource
+	if isValidNode node then AlecDist_setAnchor node else AlecDist_updatePreview AlecDist_active
+)
+
+fn AlecDist_pickAxes =
+(
+	local node = pickObject prompt:"Distribute: pick the object whose axes Local takes, right click or Esc = cancel"
+	if isValidNode node then AlecDist_setAxesOf node else AlecDist_updatePreview AlecDist_active
 )
 
 -- run
 
--- a caddy that is already open closes first (its objects go back), then the tool starts again from the current selection
-fn AlecDist_run =
+-- without the caddy: the settings last used in it, no anchor, the two ends stay in place; one undo step
+fn AlecDist_applyDirect sess =
 (
-	if AlecDist_rollout.open do destroyDialog AlecDist_rollout
+	undo "Distribute" on (AlecDist_apply sess)
+	redrawViews()
+	displayTempPrompt ("Distribute: " + sess.sources.count as string + " objects") 3000
+)
+
+-- a caddy that is already open closes first (its objects go back), then the tool starts again from the current selection;
+-- showCaddy:false distributes at once
+fn AlecDist_run showCaddy:true =
+(
+	AlecTools_closeCaddy()
 	local sources = AlecDist_sources (selection as array)
 	if sources.count < 2 then
 		displayTempPrompt "Distribute: select at least 2 objects" 3000
 	else
 	(
-		AlecDist_active = AlecDist_newSession (AlecTools_recallSettings "Distribute" (AlecDist_Settings())) sources
-		AlecDist_updatePreview AlecDist_active
-		registerRedrawViewsCallback AlecDist_draw
-		AlecTools_openCaddy AlecDist_rollout "Distribute" 300 391
+		local sess = AlecDist_newSession (AlecTools_recallSettings "Distribute" (AlecDist_Settings())) sources
+		if showCaddy then
+		(
+			AlecDist_active = sess
+			AlecDist_updatePreview AlecDist_active
+			registerRedrawViewsCallback AlecDist_draw
+			python.ExecuteFile (AlecTools_path "tools/distributeCaddy.py")
+		)
+		else AlecDist_applyDirect sess
 	)
 )

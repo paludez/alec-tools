@@ -1,11 +1,11 @@
--- Measure Angle: the angle between two lines, live.
+-- Measure Angle, advanced: what the caddy (Shift + click on the button, or a toolbar right click) starts. Needs tools/measureAngle.ms loaded.
 -- Lines (the default): 4 clicks with snaps, 2 for each line; from the third click on, the second line follows the mouse and the angle with it.
 -- Where the lines meet the segments are extended to that point and the angle is written there. Lines that do not meet (skew in 3D)
 -- make no angle: the line between their closest points is drawn with that closest distance written on it.
 -- A fifth click starts a new measure from that point.
--- Ctrl switches the plane on and off (World XY unless the dialog chose another): the lines are projected on that plane, through
+-- Ctrl switches the plane on and off (World XY unless the caddy chose another): the lines are projected on that plane, through
 -- the first point, and the angle is the one seen looking straight at it, e.g. from the top view for World XY.
--- Shift + click on the button opens the dialog (tools/measureAngleDialog.ms): edges and faces, and other planes.
+-- Shift + click on the button (or a toolbar right click) opens the caddy (tools/measureAngleCaddy.py): edges and faces, and other planes.
 -- Angles are written both ways (a and 180 - a), since two lines make both. Right click or Esc ends and clears the viewports.
 
 global AlecAngle_overlay = undefined
@@ -100,15 +100,13 @@ fn AlecAngle_project points normal =
 	for p in points collect p - n * (dot (p - points[1]) n)
 )
 
--- state of the running command, global so the Ctrl watcher (lib/ctrlKey.ms) and the dialog can reach it:
+-- state of the running command, global so the Ctrl watcher (lib/ctrlKey.ms) and the caddy can reach it:
 -- the plane on or off, its normal and name, the clicked line points and the mouse point
 global AlecAngle_flat = false
 global AlecAngle_normal = [0, 0, 1]
 global AlecAngle_planeName = "World XY"
 global AlecAngle_fixed = #()
 global AlecAngle_cursor = undefined
--- the dialog (tools/measureAngleDialog.ms): while it is open the result is also written there
-global AlecAngle_dialog
 
 -- the end of the prompt: the plane in use and the keys
 fn AlecAngle_promptTail =
@@ -116,12 +114,6 @@ fn AlecAngle_promptTail =
 	" | " + (if AlecAngle_flat then AlecAngle_planeName else "3D") + ", Ctrl = 3D/" + AlecAngle_planeName + ", right click or Esc = end"
 )
 
--- the angle (or why there is none) of the overlay, written in the dialog when it is open
-fn AlecAngle_report ov =
-(
-	if AlecAngle_dialog != undefined and AlecAngle_dialog.open do
-		AlecAngle_dialog.lblResult.text = if ov.labels.count == 0 then "" else ov.labels[ov.labels.count][2]
-)
 
 fn AlecAngle_prompt =
 (
@@ -142,7 +134,6 @@ fn AlecAngle_linePoints =
 fn AlecAngle_show =
 (
 	AlecAngle_overlay = AlecAngle_linesOverlay (AlecAngle_linePoints())
-	AlecAngle_report AlecAngle_overlay
 	replacePrompt (AlecAngle_prompt())
 	redrawViews()
 )
@@ -186,7 +177,7 @@ tool AlecAngle_tool
 	)
 )
 
--- the plain button: 3D, Ctrl = World XY; the dialog passes its own plane, already on
+-- the plain button: 3D, Ctrl = World XY; the caddy passes its own plane, already on
 fn AlecAngle_run normal:[0, 0, 1] name:"World XY" flat:false =
 (
 	AlecAngle_normal = normal

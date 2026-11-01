@@ -1,4 +1,4 @@
--- Measure Angle, advanced: the dialog (Shift + click on the button) and what it starts. Needs tools/measureAngle.ms loaded.
+-- Measure Angle, advanced: what the caddy (Shift + click on the button, or a toolbar right click) starts. Needs tools/measureAngle.ms loaded.
 -- Edges: hover any object, its nearest real edge (not a hidden diagonal) lights up, a click takes it; 2 edges, from any objects.
 -- Faces: hover, the face lights up, a click takes it; 2 faces, the angle between the faces (not their normals) on the side of each click.
 -- A third click starts a new measure. Plane: 3D, World XY / XZ / YZ, through 3 clicked points, or the plane of a clicked face;
@@ -181,7 +181,6 @@ fn AlecAngle_pickOverlay =
 fn AlecAngle_pickShow =
 (
 	AlecAngle_overlay = AlecAngle_pickOverlay()
-	AlecAngle_report AlecAngle_overlay
 	local what = if AlecAngle_mode == #faces then "face" else "edge"
 	local n = AlecAngle_picked.count
 	replacePrompt ((if n < 2 then "Measure Angle: click " + what + " " + ((n + 1) as string) + " of 2" else "Measure Angle: click = new measure") \
@@ -318,13 +317,9 @@ fn AlecAngle_runPick mode normal label flat =
 	startTool AlecAngle_pickTool prompt:("Measure Angle: click " + (if mode == #faces then "face" else "edge") + " 1 of 2" + AlecAngle_promptTail())
 )
 
--- true while Start runs a command from the dialog, so the Esc that ends it does not close the dialog too
-global AlecAngle_measuring = false
-
--- the dialog's Start: what is 1 Points, 2 Edges, 3 Faces; plane is 1 3D, 2 World XY, 3 World XZ, 4 World YZ, 5 3 points, 6 Pick face
+-- the caddy's Start (tools/measureAngleCaddy.py): what is 1 Points, 2 Edges, 3 Faces; plane is 1 3D, 2 World XY, 3 World XZ, 4 World YZ, 5 3 points, 6 Pick face
 fn AlecAngle_dialogStart what plane =
 (
-	AlecAngle_measuring = true
 	local normal = case plane of
 	(
 		3: [0, 1, 0]
@@ -344,49 +339,4 @@ fn AlecAngle_dialogStart what plane =
 			3: AlecAngle_runPick #faces normal label flat
 		)
 	)
-	AlecAngle_measuring = false
-)
-
--- the dialog, as the other Alec Tools dialogs: a tool window where the user left it (the first time the middle of Max), Esc closes it;
--- the last choices are kept for this scene (lib/settings.ms)
-
--- the macro loads this file on every Shift + click: a dialog still open from the last one closes before its rollout is defined again
-if AlecAngle_dialog != undefined and AlecAngle_dialog.open do destroyDialog AlecAngle_dialog
-
-rollout AlecAngle_dialog "Measure Angle"
-(
-	radiobuttons rdoWhat "Measure:" labels:#("Points", "Edges", "Faces") columns:3 align:#left
-	radiobuttons rdoPlane "Plane:" labels:#("3D", "World XY", "World XZ", "World YZ", "3 points", "Pick face") columns:3 align:#left
-	button btnStart "Start" width:200
-	label lblResult "" align:#left width:200
-	button btnClose "Close" width:200
-	-- Esc closes the caddy, also when the viewport has the focus, but not the Esc that cancels a pick (lib/common.ms)
-	timer tmrEsc interval:100
-	local escWatch = AlecTools_EscWatch()
-
-	-- the settings are #(what, plane), the states of the two radio buttons
-	fn store = AlecTools_rememberSettings "MeasureAngle" #(rdoWhat.state, rdoPlane.state)
-
-	on AlecAngle_dialog open do
-	(
-		local s = AlecTools_recallSettings "MeasureAngle" #(2, 1)
-		rdoWhat.state = s[1]
-		rdoPlane.state = s[2]
-	)
-	on rdoWhat changed v do store()
-	on rdoPlane changed v do store()
-	-- the Esc that ended the command may still be down: it counts as already seen
-	on btnStart pressed do
-	(
-		AlecAngle_dialogStart rdoWhat.state rdoPlane.state
-		escWatch.wasDown = true
-	)
-	on btnClose pressed do destroyDialog AlecAngle_dialog
-	on tmrEsc tick do if AlecTools_escPressed escWatch busy:AlecAngle_measuring do destroyDialog AlecAngle_dialog
-	on AlecAngle_dialog moved p do AlecTools_saveDialogPos "MeasureAngle" p
-)
-
-fn AlecAngle_openDialog =
-(
-	AlecTools_openCaddy AlecAngle_dialog "MeasureAngle" 220 170
 )

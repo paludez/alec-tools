@@ -1,7 +1,7 @@
 -- Test for tools/bbox.ms. Run in Max (needs a scene you do not mind changing):
 --   fileIn @"D:\P R O I E C T E\AI\3DS MAX\tests\bbox_test.ms"
 -- Creates temporary objects (ATtest_*), builds cages around them, compares sizes and positions with values worked out by hand, deletes everything.
--- Prints PASS/FAIL lines to the Listener. Not covered, try by hand: the caddy controls (spinner, checkboxes, Reset, picking the Local axes object), Esc closing the caddy, clicking an object when nothing is selected and one Ctrl+Z after OK removing all the cages.
+-- Prints PASS/FAIL lines to the Listener. Not covered, try by hand: the caddy controls other than offset, + copy and Reset (Cages, Axes, picking the Local axes object, Layer, dragging the Offset label), Esc closing the caddy, clicking an object when nothing is selected and one Ctrl+Z after OK removing all the cages.
 
 -- outside the block below: a block is compiled before a fileIn inside it runs
 fileIn (AlecTools_path "tools/bbox.ms")
@@ -251,16 +251,45 @@ fileIn (AlecTools_path "tools/bbox.ms")
 	AT_bboxTimer.start()
 	AlecBBox_run()
 	AT_bboxTimer.stop()
-	if not (check "run: only a helper selected, the pick is given up, no caddy" (not AlecBBox_rollout.open and AlecBBox_active == undefined)) do failures += 1
+	if not (check "run: only a helper selected, the pick is given up, no caddy" (AlecTools_caddyOpen != "BBox" and AlecBBox_active == undefined)) do failures += 1
 	select b1
 	AlecBBox_run()
 	local runPreview = AlecBBox_active.cages[1]
-	if not (check "run: the caddy opens with a preview" (AlecBBox_rollout.open and isValidNode runPreview)) do failures += 1
+	if not (check "run: the caddy opens with a preview" (AlecTools_caddyOpen == "BBox" and isValidNode runPreview)) do failures += 1
 	AlecBBox_run()
-	if not (check "run again: the old preview is gone, a new one is up" (not (isValidNode runPreview) and AlecBBox_rollout.open and AlecBBox_active.cages.count > 0)) do failures += 1
+	if not (check "run again: the old preview is gone, a new one is up" (not (isValidNode runPreview) and AlecTools_caddyOpen == "BBox" and AlecBBox_active.cages.count > 0)) do failures += 1
+	-- the caddy's controls (tools/bboxCaddy.py): an offset with + copy gives 2 cages, Reset goes back to the defaults
+	python.Execute "
+import AlecTools_caddy
+from PySide6 import QtWidgets
+from qtmax import GetQMaxMainWindow
+c = [w for w in GetQMaxMainWindow().findChildren(QtWidgets.QFrame, AlecTools_caddy.OBJECT_NAME) if w.isVisible()][0]
+c.offset.setValue(3.0)
+c.copy.click()
+"
+	if not (check "caddy: offset 3 with + copy saves the settings and makes 2 cages" (AlecBBox_active.settings.offset == 3.0 and AlecBBox_active.settings.addCopy and AlecBBox_active.cages.count == 2)) do failures += 1
+	python.Execute "
+import AlecTools_caddy
+from PySide6 import QtWidgets
+from qtmax import GetQMaxMainWindow
+[w for w in GetQMaxMainWindow().findChildren(QtWidgets.QFrame, AlecTools_caddy.OBJECT_NAME) if w.isVisible()][0].reset()
+"
+	if not (check "caddy: Reset goes back to the defaults, one cage" (AlecBBox_active.settings.offset == 0.0 and not AlecBBox_active.settings.addCopy and AlecBBox_active.cages.count == 1)) do failures += 1
 	runPreview = AlecBBox_active.cages[1]
 	fileIn (AlecTools_path "tools/bbox.ms")
-	if not (check "load again (macro pressed while open): the old caddy and its preview are gone" (not (isValidNode runPreview) and not AlecBBox_rollout.open)) do failures += 1
+	if not (check "load again (macro pressed while open): the old caddy and its preview are gone" (not (isValidNode runPreview) and AlecTools_caddyOpen != "BBox")) do failures += 1
+
+	-- direct (toolbar left click): no caddy, the cages are made at once, one undo removes them
+	fn helperCount = (local lay = LayerManager.getLayerFromName "BBox helpers"; local arr = #(); if lay != undefined do lay.nodes &arr; arr.count)
+	local before = helperCount()
+	AlecBBox_run showCaddy:false
+	local made = helperCount() - before
+	if not (check "direct: no caddy, cages made" (AlecTools_caddyOpen != "BBox" and AlecBBox_active == undefined and made > 0)) do failures += 1
+	max undo
+	if not (check "direct: one undo removes them" (helperCount() == before)) do failures += 1
+	-- the "BBox helpers" layer the run made goes with that undo (only checked when the scene had no such layer before the test)
+	if not helpersExisted do
+		if not (check "direct: the layer it made goes with the undo" (LayerManager.getLayerFromName "BBox helpers" == undefined)) do failures += 1
 
 	clearSelection()
 	delete (for o in objects where matchPattern o.name pattern:"ATtest_*" collect o)

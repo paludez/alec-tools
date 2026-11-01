@@ -189,12 +189,36 @@ fileIn (AlecTools_path "tools/distribute.ms")
 	AlecTools_forgetSettings()
 	select a
 	AlecDist_run()
-	if not (check "run: one object, no caddy" (not AlecDist_rollout.open and AlecDist_active == undefined)) do failures += 1
+	if not (check "run: one object, no caddy" (AlecTools_caddyOpen != "Distribute" and AlecDist_active == undefined)) do failures += 1
 	select #(a, b, c)
 	AlecDist_run()
-	if not (check "run: the caddy opens and the objects move as a preview" (AlecDist_rollout.open and nearF b.pos.x 25 and AlecDist_active.dims.boxes.count == 3)) do failures += 1
+	if not (check "run: the caddy opens and the objects move as a preview" (AlecTools_caddyOpen == "Distribute" and nearF b.pos.x 25 and AlecDist_active.dims.boxes.count == 3)) do failures += 1
+	-- the caddy's controls (tools/distributeCaddy.py): Gaps mode is saved, a typed step is kept, Auto works it out again
+	python.Execute "
+import AlecTools_caddy
+from PySide6 import QtWidgets
+from qtmax import GetQMaxMainWindow
+c = [w for w in GetQMaxMainWindow().findChildren(QtWidgets.QFrame, AlecTools_caddy.OBJECT_NAME) if w.isVisible()][0]
+c.mode.button(2).click()
+c.mode.button(1).click()
+c.step.setValue(40.0)
+"
+	if not (check "caddy: a typed step moves the objects and is kept" (not AlecDist_active.autoFill and nearF AlecDist_active.step 40 and AlecDist_active.settings.gaps == false)) do failures += 1
+	python.Execute "
+import AlecTools_caddy
+from PySide6 import QtWidgets
+from qtmax import GetQMaxMainWindow
+[w for w in GetQMaxMainWindow().findChildren(QtWidgets.QFrame, AlecTools_caddy.OBJECT_NAME) if w.isVisible()][0].auto.click()
+"
+	if not (check "caddy: Auto keeps the two ends in place again" (AlecDist_active.autoFill and nearF b.pos.x 25)) do failures += 1
 	fileIn (AlecTools_path "tools/distribute.ms")
-	if not (check "load again (macro pressed while open): the caddy closes and the objects go back" (not AlecDist_rollout.open and nearF b.pos.x 10)) do failures += 1
+	if not (check "load again (macro pressed while open): the caddy closes and the objects go back" (AlecTools_caddyOpen != "Distribute" and nearF b.pos.x 10)) do failures += 1
+
+	-- direct (toolbar left click): no caddy, the objects move at once, one undo puts them back
+	AlecDist_run showCaddy:false
+	if not (check "direct: no caddy, the objects move" (AlecTools_caddyOpen != "Distribute" and AlecDist_active == undefined and nearF b.pos.x 25)) do failures += 1
+	max undo
+	if not (check "direct: one undo puts them back" (nearF b.pos.x 10)) do failures += 1
 
 	clearSelection()
 	delete (for o in objects where matchPattern o.name pattern:"ATtest_*" collect o)
