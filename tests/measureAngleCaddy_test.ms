@@ -2,7 +2,7 @@
 --   fileIn @"D:\P R O I E C T E\AI\3DS MAX\tests\measureAngleCaddy_test.ms"
 -- Opens the caddy twice (only one stays), checks its buttons and that a click is kept in the scene settings, closes it.
 -- Prints PASS/FAIL lines to the Listener. Not covered, try by hand: Start (check button) for each choice, the yellow result while
--- measuring, Esc in the viewport closing it but not the Esc that ends a measure, dragging it, Enter.
+-- measuring, Esc ending a measure and leaving the panel open, dragging it, Enter.
 (
 	local saved = AlecTools_recallSettings "MeasureAngle" #(2, 1)
 	AlecTools_rememberSettings "MeasureAngle" #(3, 4)

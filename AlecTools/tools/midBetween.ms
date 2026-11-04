@@ -293,11 +293,15 @@ fn AlecMid_repick = AlecMid_collectPoints AlecMid_active
 
 -- run
 
--- with nothing selected, waits in the prompt line for the user to click the object to move (right click or Esc gives up)
+-- with nothing selected, waits for the user to click the object to move, with a tag in the viewport saying so (right click or Esc gives up)
 fn AlecMid_waitForSelection =
 (
 	if selection.count == 0 do
+	(
+		AlecTools_showPickTag "Mid Between: click the object to move"
 		pickObject prompt:"Mid Between: pick the object to move, right click or Esc = cancel" select:true
+		AlecTools_closeCaddy()
+	)
 	selection.count > 0
 )
 

@@ -7,6 +7,7 @@ folder (missing keys take the defaults below). The dock edge is saved in AlecToo
 """
 
 import glob
+import importlib
 import json
 import os
 import re
@@ -21,6 +22,8 @@ if LIB not in sys.path:
     sys.path.append(LIB)
 import AlecTools_caddy
 
+importlib.reload(AlecTools_caddy)
+
 CATEGORY = "Alec Tools"
 OBJECT_NAME = "AlecToolsToolbar"
 EDITOR_NAME = "AlecToolsToolbarEditor"
@@ -30,9 +33,9 @@ SEPARATOR = "|"
 DEFAULTS = {
     # macro names in order, SEPARATOR = a separator
     "buttons": [
-        "MiscMenu",
-        SEPARATOR,
-        "ReloadAlecTools", "EditToolbar", "IconBrowser",
+        "ConvertersMenu",
+        SEPARATOR, SEPARATOR,
+        "ReloadAlecTools", "EditToolbar", "IconBrowser", "MaxSettings",
         SEPARATOR,
         "MidBetween", "Distribute", "BBox",
         SEPARATOR,
@@ -42,10 +45,6 @@ DEFAULTS = {
         SEPARATOR,
         "UsePivotPointCenter", "UseSelectionCenter", "UseTransformCoordinateCenter",
         SEPARATOR,
-        "WorldPosition", "LocalOffset",
-        SEPARATOR,
-        "WorldRotation", "LocalRotation",
-        SEPARATOR,
         "Scale", "Size",
     ],
     "markSize": 8,
@@ -54,10 +53,14 @@ DEFAULTS = {
     "separatorWidth": 2,
     "separatorMargin": 2,
     # pixels of vertical drag per step of a field's ladder
-    "ladderPixels": 8,
+    "ladderPixels": AlecTools_caddy.LADDER_PIXELS,
     # the colors of the World and Local rows' icons, so they are told apart at a glance
     "worldColor": "#00aaff",
     "localColor": "#55ff7f",
+    # the mini help on the tools' panels (read by AlecTools_caddy.help_shown)
+    "showHelp": True,
+    # folders texture dialogs start in: with several, a menu asks which (read by AlecTools_caddy.map_folders)
+    "mapFolders": [],
 }
 
 # buttons shown pressed while getCoordCenter() returns this value, as the macros' own isChecked
@@ -73,7 +76,13 @@ WITH_OPTIONS = {"MeasureAngle", "BBox", "Distribute", "MidBetween", "UniversalCo
 
 # entries that are one button opening a drop-down list of macros; an item that opens its caddy on a right click opens it here too
 MENUS = {
-    "MiscMenu": {"title": "Misc", "icon": "AssetTracking_48.png", "items": ["UniversalConverter", "UsdMaterialX", "LightConverter"]},
+    # an item that is a dict is a submenu; one with no items yet is shown disabled
+    "ConvertersMenu": {"title": "Converters", "icon": "CreateTransitionFromTo_32.png", "items": [
+        {"title": "Materials", "items": ["UniversalConverter"]},
+        {"title": "Maps", "items": []},
+        {"title": "Lights", "items": ["LightConverter"]},
+        {"title": "USD", "items": ["UsdMaterialX"]},
+    ]},
 }
 
 # entries that are rows of X/Y/Z fields, not macro buttons; their logic is in tools/transformFields.ms. "get" gives the shown
@@ -122,14 +131,6 @@ FIELDS = {
 }
 FIELD_WIDTH = 58
 FIELD_DECIMALS = 3
-# the ladder's steps, left to right; it opens with LADDER_START under the mouse
-LADDER_STEPS = [100, 10, 1, 0.1, 0.01, 0.001]
-# the steps of a rotation row's ladder while Shift is held, as many as LADDER_STEPS
-ANGLE_STEPS = [180, 90, 45, 15, 5, 1]
-# how many times more drag a step of ANGLE_STEPS takes than the pixels per step setting
-ANGLE_PIXELS = 10
-LADDER_START = 2
-LADDER_CELL = QtCore.QSize(64, 44)
 
 AREAS = {
     "top": QtCore.Qt.TopToolBarArea,
@@ -145,7 +146,7 @@ FIELD_RE = r'^{}:"([^"]*)"'
 # settings
 
 def config_file():
-    return os.path.join(rt.getDir(rt.Name("userScripts")), "AlecTools.toolbar.json")
+    return AlecTools_caddy.toolbar_config_file()
 
 
 def default_names():
@@ -154,6 +155,13 @@ def default_names():
 
 # a saved toolbar keeps its buttons, but a default added since it was saved ("known" lists the defaults it has seen)
 # comes after a separator at the end, so an update brings new tools to a toolbar the user already edited
+def menu_macros(items):
+    names = []
+    for item in items:
+        names += menu_macros(item["items"]) if isinstance(item, dict) else [item]
+    return names
+
+
 def load_config():
     config = json.loads(json.dumps(DEFAULTS))
     if os.path.isfile(config_file()):
@@ -164,7 +172,7 @@ def load_config():
         # a menu that is new goes to the start and takes the place of its items, if the saved toolbar has them as buttons of their own
         menus = [n for n in new if n in MENUS]
         for menu in menus:
-            config["buttons"] = [n for n in config["buttons"] if n not in MENUS[menu]["items"]]
+            config["buttons"] = [n for n in config["buttons"] if n not in menu_macros(MENUS[menu]["items"])]
         if menus:
             config["buttons"] = menus + [SEPARATOR] + config["buttons"]
         rest = [n for n in new if n not in MENUS]
@@ -236,13 +244,22 @@ def resource_icon(file_name):
     return QtGui.QIcon(found.next()) if found.hasNext() else QtGui.QIcon()
 
 
-def add_menu(bar, name, info):
-    spec = MENUS[name]
-    menu = QtWidgets.QMenu(bar)
-    for item in spec["items"]:
+def fill_menu(bar, menu, items, info):
+    for item in items:
+        if isinstance(item, dict):
+            sub = menu.addMenu(item["title"])
+            sub.setEnabled(bool(item["items"]))
+            fill_menu(bar, sub, item["items"], info)
+            continue
         text, icon = info.get(item, (item, None))
         action = menu.addAction(QtGui.QIcon(icon) if icon else QtGui.QIcon(), text)
         action.triggered.connect(lambda checked=False, n=item: run_with_options(n) if n in WITH_OPTIONS else run(bar, n))
+
+
+def add_menu(bar, name, info):
+    spec = MENUS[name]
+    menu = QtWidgets.QMenu(bar)
+    fill_menu(bar, menu, spec["items"], info)
     action = bar.addAction(spec["title"])
     action.setMenu(menu)
     action.setToolTip(spec["title"])
@@ -373,224 +390,39 @@ def refresh_all():
 # position fields
 
 
-# a value ladder laid out in a row (Houdini's stands up): the steps around the mouse, the one in use highlighted, and the value
-class Ladder(QtWidgets.QWidget):
-    def __init__(self, parent, lost):
-        super().__init__(parent, QtCore.Qt.ToolTip | QtCore.Qt.FramelessWindowHint)
-        self.lost = lost
-        self.setMouseTracking(True)
-        self.row = LADDER_START
-        self.steps = LADDER_STEPS
-        self.text = ""
-        self.resize(LADDER_CELL.width() * len(LADDER_STEPS), LADDER_CELL.height())
-
-    # opens with its LADDER_START cell under pos, kept inside the screen (the toolbar may be at its bottom edge); returns
-    # where that cell's middle ended up, where the mouse is put
-    def open(self, pos, screen):
-        w, h = LADDER_CELL.width(), LADDER_CELL.height()
-        x = max(screen.left(), min(screen.right() - self.width(), pos.x() - w * LADDER_START - w // 2))
-        y = max(screen.top(), min(screen.bottom() - self.height(), pos.y() - h // 2))
-        self.move(x, y)
-        self.show()
-        return QtCore.QPoint(x + w * LADDER_START + w // 2, y + h // 2)
-
-    # the step under a screen point while it is over the ladder's row, else None
-    def row_at(self, pos):
-        if not self.geometry().top() <= pos.y() <= self.geometry().bottom():
-            return None
-        return max(0, min(len(LADDER_STEPS) - 1, (pos.x() - self.x()) // LADDER_CELL.width()))
-
-    def set(self, row, text, steps):
-        self.row, self.text, self.steps = row, text, steps
-        self.update()
-
-    def paintEvent(self, event):
-        p = QtGui.QPainter(self)
-        for i, step in enumerate(self.steps):
-            rect = QtCore.QRect(QtCore.QPoint(i * LADDER_CELL.width(), 0), LADDER_CELL)
-            p.fillRect(rect, QtGui.QColor("#5a7aa0" if i == self.row else "#3a3a3a"))
-            p.setPen(QtGui.QColor("#1e1e1e"))
-            p.drawRect(rect.adjusted(0, 0, -1, -1))
-            p.setPen(QtGui.QColor("#e0e0e0"))
-            text = "{:g}".format(step)
-            if i == self.row:
-                text += "\n" + self.text
-            p.drawText(rect, QtCore.Qt.AlignCenter, text)
-
-    # during a drag the mouse goes to the dragged widget, so the mouse reaching the ladder means that widget missed the release
-    # (Alt+Tab, a dialog): touching the ladder closes it
-    def mouseMoveEvent(self, event):
-        if not event.buttons() & QtCore.Qt.MiddleButton:
-            self.lost()
-
-    def mousePressEvent(self, event):
-        self.lost()
-
-    def mouseReleaseEvent(self, event):
-        self.lost()
+# a right click reaching the widget resets it (on the toolbar RightClicks takes it first)
+class FieldMouse(AlecTools_caddy.LadderMouse):
+    def right_clicked(self):
+        reset_fields(self)
 
 
-# a middle drag on a widget: up/down changes the value by the step in use, like a Max spinner; the step is picked by going
-# left/right over the ladder (away from it the step stays, however the mouse drifts), as in Houdini. The mouse is followed
-# as a pointer of its own, and the cursor stays on the ladder's row as if pushing against it: up/down never takes it up the
-# screen, and left/right moves it along the ladder only while the pointer is on the row. It reports the total change since
-# the press
-class LadderDrag:
-    def __init__(self, widget, fields, axes):
-        self.fields = fields
-        self.axes = axes
-        self.ladder = Ladder(widget, self.finish)
-        self.state = None
+# a value box of a row: middle drag for the ladder, right click for 0 (see RightClicks)
+class Field(FieldMouse, AlecTools_caddy.TypedField):
+    decimals = FIELD_DECIMALS
 
-    def active(self):
-        return self.state is not None
-
-    def press(self, event):
-        if event.button() != QtCore.Qt.MiddleButton:
-            return False
-        self.finish()
-        press = event.globalPosition().toPoint()
-        screen = QtGui.QGuiApplication.screenAt(press).geometry()
-        # before the ladder opens, so that a failure here leaves nothing open
-        self.fields.drag_start()
-        pos = self.ladder.open(press, screen)
-        QtGui.QCursor.setPos(pos)
-        self.state = {"cursor": pos, "pointer": QtCore.QPoint(pos), "pixels": 0, "row": LADDER_START, "base": 0.0,
-                      "delta": 0.0, "steps": LADDER_STEPS}
-        self.ladder.set(LADDER_START, self.fields.drag_text(self.axes, 0.0), LADDER_STEPS)
-        return True
-
-    # moves the pointer by what the mouse moved since the cursor was last placed; the cursor goes back to the ladder's row,
-    # under the pointer while it is on the row, else where it was
-    def follow(self, pos):
-        s = self.state
-        moved = pos - s["cursor"]
-        s["pointer"] += moved
-        s["pixels"] -= moved.y()
-        x = s["cursor"].x()
-        if self.ladder.row_at(s["pointer"]) is not None:
-            x = max(self.ladder.x(), min(self.ladder.geometry().right(), s["pointer"].x()))
-        cursor = QtCore.QPoint(x, self.ladder.geometry().center().y())
-        if cursor != pos:
-            QtGui.QCursor.setPos(cursor)
-        s["cursor"] = cursor
-
-    def move(self, event):
-        if self.state is None:
-            return False
-        if not event.buttons() & QtCore.Qt.MiddleButton:
-            self.finish()
-            return True
-        s = self.state
-        self.follow(event.globalPosition().toPoint())
-        row = self.ladder.row_at(s["pointer"])
-        # a new step, or Shift switching the steps of a rotation, goes on from the change reached
-        steps = ANGLE_STEPS if self.fields.spec.get("angles") and event.modifiers() & QtCore.Qt.ShiftModifier else LADDER_STEPS
-        if steps is not s["steps"]:
-            s.update(steps=steps, base=s["delta"], pixels=0)
-        if row is not None and row != s["row"]:
-            s.update(row=row, base=s["delta"], pixels=0)
-        pixels = self.fields.pixels * (ANGLE_PIXELS if steps is ANGLE_STEPS else 1)
-        delta = s["base"] + int(s["pixels"] / pixels) * steps[s["row"]]
-        if delta != s["delta"]:
-            s["delta"] = delta
-            self.fields.drag_preview(self.axes, delta)
-        self.ladder.set(s["row"], self.fields.drag_text(self.axes, delta), steps)
-        return True
-
-    def release(self, event):
-        if self.state is None or event.button() != QtCore.Qt.MiddleButton:
-            return False
-        self.finish()
-        return True
-
-    # also when the release was missed: what the drag reached stays, as one undo step
-    def finish(self):
-        if self.state is None:
-            return
-        delta, self.state = self.state["delta"], None
-        self.ladder.hide()
-        self.fields.drag_end(self.axes, delta)
-
-
-# forwards a widget's mouse to its LadderDrag; whatever the drag does not take goes to the widget as usual
-class LadderMouse:
-    # a right click resets too when it reaches the widget (on the toolbar RightClicks takes it first)
-    def mousePressEvent(self, event):
-        if event.button() == QtCore.Qt.RightButton:
-            reset_fields(self)
-        elif not self.drag.press(event):
-            super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event):
-        if not self.drag.move(event):
-            super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        if not self.drag.release(event):
-            super().mouseReleaseEvent(event)
-
-
-# a value box: type a value or arithmetic and Enter, middle drag for the ladder, right click for 0 (see RightClicks)
-class Field(LadderMouse, QtWidgets.QLineEdit):
     def __init__(self, fields, axis):
         super().__init__()
         self.fields = fields
         self.axis = axis
-        self.value = 0.0
-        self.drag = LadderDrag(self, fields, [axis])
+        self.drag = AlecTools_caddy.LadderDrag(self, fields, [axis])
         self.setFixedWidth(FIELD_WIDTH)
         self.setStyleSheet("selection-background-color: #1f6fd6; selection-color: white;")
-        self.edited = False
-        self.textEdited.connect(self.mark_edited)
-        # Enter and leaving the box (Tab, a click elsewhere) both enter what was typed
-        self.editingFinished.connect(self.typed)
-
-    # a click into the box selects all of it, as Tab does; after the click's own cursor placement, which would undo it
-    def focusInEvent(self, event):
-        super().focusInEvent(event)
-        if event.reason() == QtCore.Qt.MouseFocusReason:
-            QtCore.QTimer.singleShot(0, self.selectAll)
-
-    def mark_edited(self):
-        self.edited = True
 
     # None: the selected objects differ
-    def show_value(self, value):
-        self.value = value
-        self.edited = False
-        text = VARIES if value is None else "{:.{}f}".format(value, FIELD_DECIMALS)
-        if text != self.text():
-            self.setText(text)
+    def format_value(self, value):
+        return VARIES if value is None else super().format_value(value)
 
-    def typed(self):
-        if not self.edited:
-            self.clearFocus()
-            return
-        # leaving the box with Esc down (Esc closing the popup) drops the edit: MAXScript run from Qt then crashed Max
-        if AlecTools_caddy.escape_down():
-            self.show_value(self.value)
-            return
-        self.edited = False
-        try:
-            value = AlecTools_caddy.evaluate(self.text())
-        except (SyntaxError, ValueError, ZeroDivisionError):
-            AlecTools_caddy.without_escape(lambda: rt.displayTempPrompt("Alec Toolbar: not a value: " + self.text(), 3000))()
-            value = None
-        self.clearFocus()
-        if value is None:
-            self.show_value(self.value)
-        else:
-            AlecTools_caddy.without_escape(lambda: self.fields.enter(self.axis, value))()
+    def enter(self, value):
+        self.fields.enter(self.axis, value)
 
 
 # the name of a row of fields: a middle drag on it changes X, Y and Z together, as on a Houdini parameter's name
 # (its letter and icon let the mouse through to it). The icon is tinted with the World or Local color
-class FieldsLabel(LadderMouse, QtWidgets.QWidget):
+class FieldsLabel(FieldMouse, QtWidgets.QWidget):
     # text: the name shown instead of the spec's, with no icon (the Transform Popup, which draws the icon on its group)
     def __init__(self, spec, fields, tint, text=None):
         super().__init__()
-        self.drag = LadderDrag(self, fields, [1, 2, 3])
+        self.drag = AlecTools_caddy.LadderDrag(self, fields, [1, 2, 3])
         layout = QtWidgets.QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
@@ -868,6 +700,7 @@ class Editor(QtWidgets.QDialog):
         self.ladder_pixels = self.spin(1, 40)
         self.world_color = ColorButton("#000000")
         self.local_color = ColorButton("#000000")
+        self.show_help = QtWidgets.QCheckBox()
         looks = QtWidgets.QFormLayout()
         looks.addRow("Options mark size", self.mark_size)
         looks.addRow("Options mark color", self.mark_color)
@@ -877,6 +710,20 @@ class Editor(QtWidgets.QDialog):
         looks.addRow("Ladder drag: pixels per step", self.ladder_pixels)
         looks.addRow("World icon color", self.world_color)
         looks.addRow("Local icon color", self.local_color)
+        looks.addRow("Mini help on the tools' panels", self.show_help)
+        self.map_folders = QtWidgets.QListWidget()
+        self.map_folders.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
+        self.map_folders.setMaximumHeight(70)
+        self.map_folders.setToolTip("Where texture dialogs start; with several folders a menu asks which. Drag to reorder")
+        folder_buttons = QtWidgets.QVBoxLayout()
+        for text, slot in (("Add folder", self.add_map_folder), ("Remove", self.remove_map_folder)):
+            b = QtWidgets.QPushButton(text)
+            b.clicked.connect(slot)
+            folder_buttons.addWidget(b)
+        folders = QtWidgets.QHBoxLayout()
+        folders.addWidget(self.map_folders)
+        folders.addLayout(folder_buttons)
+        looks.addRow("Map folders", folders)
 
         buttons = QtWidgets.QHBoxLayout()
         for text, slot in (("Defaults", lambda: self.fill(json.loads(json.dumps(DEFAULTS)))), (None, None),
@@ -898,7 +745,7 @@ class Editor(QtWidgets.QDialog):
             spin.valueChanged.connect(self.apply)
         for color in (self.mark_color, self.sep_color, self.world_color, self.local_color):
             color.changed.connect(self.apply)
-        self.resize(640, 560)
+        self.resize(640, 640)
 
     def titled(self, title, widget):
         box = QtWidgets.QVBoxLayout()
@@ -934,6 +781,9 @@ class Editor(QtWidgets.QDialog):
         self.ladder_pixels.setValue(config["ladderPixels"])
         self.world_color.set_color(config["worldColor"])
         self.local_color.set_color(config["localColor"])
+        self.show_help.setChecked(config["showHelp"])
+        self.map_folders.clear()
+        self.map_folders.addItems(config["mapFolders"])
 
     def config(self):
         return {
@@ -946,7 +796,19 @@ class Editor(QtWidgets.QDialog):
             "ladderPixels": self.ladder_pixels.value(),
             "worldColor": self.world_color.color,
             "localColor": self.local_color.color,
+            "showHelp": self.show_help.isChecked(),
+            "mapFolders": [self.map_folders.item(i).text() for i in range(self.map_folders.count())],
         }
+
+    def add_map_folder(self):
+        folder = QtWidgets.QFileDialog.getExistingDirectory(self, "Map folder")
+        if folder and not self.map_folders.findItems(folder, QtCore.Qt.MatchExactly):
+            self.map_folders.addItem(folder)
+
+    def remove_map_folder(self):
+        row = self.map_folders.currentRow()
+        if row >= 0:
+            self.map_folders.takeItem(row)
 
     # a new row goes after the selected one, or at the end
     def insert(self, name):

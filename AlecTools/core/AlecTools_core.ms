@@ -37,6 +37,9 @@ fn AlecTools_openLog =
 -- returns an array of error strings (empty = all ok)
 fn AlecTools_load =
 (
+	-- Esc interrupts no MAXScript in this session: an "interrupted" that passes through Python (a toolbar button runs its macro from
+	-- Python, a Qt event calls pymxs) crashes Max. Picks and viewport tools still end with Esc
+	escapeEnable = false
 	-- a viewport tool still running keeps its drawing callback and Ctrl timer, an open Qt caddy cleans up its preview when it closes, and the
 	-- toolbar's node event callback calls its functions:
 	-- all would call purged functions, so they end first.

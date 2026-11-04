@@ -1,44 +1,56 @@
--- Settings Transfer: moves the Max customizations (shortcuts, quad menus, menus, toolbars) between PCs as a folder.
--- Export copies them into <chosen folder>/AlecSettings. Import backs up this PC's, stages the folder, and a small .cmd
--- (cmd.exe only: no PowerShell, no Python) replaces them once Max has closed, because Max rewrites its UI files when it exits.
+-- Settings Transfer: moves the Max shortcuts, toolbars and menus between PCs as a folder.
+-- Export puts them in <chosen folder>/AlecSettings.zip. Import takes that zip, backs up this PC's and replaces them with the zip's.
+-- Max rewrites its UI files when it exits unless "Save UI configuration on exit" (Customize > Preferences) is off, so the
+-- panel (maxSettings.py) asks for that to be off, and the new settings are there at the next start.
 --
--- What is moved:
+-- What is moved (nothing else of the workspaces: no ribbon, viewport presets, colors):
 --   User Settings/*.hsx *.qmnx *.mnx   shortcuts (hotkey sets), quad menus, menus
---   UI/Workspaces                      workspaces: toolbars, plus what a workspace keeps (ribbon, viewport presets)
---   UI/MaxStartUI.cuix(.layout)        the toolbars Max starts with
--- The .mnxpath files of the workspaces hold the user folder of the PC that wrote them; staging points them to this user.
+--   the active workspace's .cuix       toolbars, plus its .cuix.layout (where they are docked) and .mnxpath (which menu files);
+--                                      the active workspace is the one Max saved last (the newest .workspace)
+--   MaxStartUI.cuix(.layout)           the copy of the toolbars Max starts with
+-- The .mnxpath names the user folder of the PC that wrote it: export swaps it for a token, so the exported folder holds
+-- no path of that PC, and staging swaps the token for this PC's user folder.
 
-struct AlecSettings_dirsStruct (settingsDir, uiDir, backupDir, pendingDir)
+-- workspace: the active workspace's path without extension (Workspaces\usersave\Workspace1__usersave__), undefined when there is none
+struct AlecSettings_dirsStruct (settingsDir, uiDir, workspace, backupDir, pendingDir)
+
+global AlecSettings_userToken = "{USERPROFILE}"
 
 fn AlecSettings_userProfile = (dotNetClass "System.Environment").GetEnvironmentVariable "USERPROFILE"
+
+-- the active workspace: the newest .workspace under Workspaces, as its path without the extension
+fn AlecSettings_activeWorkspace uiDir =
+(
+	local dirIO = dotNetClass "System.IO.Directory"
+	local fileIO = dotNetClass "System.IO.File"
+	local newest = undefined
+	local newestTime = undefined
+	if dirIO.Exists (uiDir + "\\Workspaces") do
+		for f in (dirIO.GetFiles (uiDir + "\\Workspaces") "*.workspace" (dotNetClass "System.IO.SearchOption").AllDirectories) do
+		(
+			local time = fileIO.GetLastWriteTimeUtc f
+			if newest == undefined or (time.CompareTo newestTime) > 0 do (newest = f; newestTime = time)
+		)
+	if newest == undefined then undefined else (getFilenamePath newest) + (getFilenameFile newest)
+)
 
 -- where this Max keeps its customizations; the language folder (ENU) is the one the user scripts folder is in
 fn AlecSettings_defaultDirs =
 (
 	local enu = (dotNetClass "System.IO.Path").GetFullPath ((getDir #userScripts) + "/..")
+	local ui = enu + "\\en-US\\UI"
 	AlecSettings_dirsStruct \
 		settingsDir:((AlecSettings_userProfile()) + "\\Autodesk\\3ds Max 2027\\User Settings") \
-		uiDir:(enu + "\\en-US\\UI") \
+		uiDir:ui \
+		workspace:(AlecSettings_activeWorkspace ui) \
 		backupDir:(enu + "\\AlecSettings.backup") \
 		pendingDir:(enu + "\\AlecSettings.pending")
 )
 
-fn AlecSettings_copyFile src dstDir =
+fn AlecSettings_copyFileTo src dst =
 (
-	(dotNetClass "System.IO.Directory").CreateDirectory dstDir
-	(dotNetClass "System.IO.File").Copy src (dstDir + "\\" + (filenameFromPath src)) true
-)
-
--- copies a folder with everything in it; returns how many files
-fn AlecSettings_copyTree srcDir dstDir =
-(
-	local dirIO = dotNetClass "System.IO.Directory"
-	dirIO.CreateDirectory dstDir
-	local n = 0
-	for f in (dirIO.GetFiles srcDir) do (AlecSettings_copyFile f dstDir; n += 1)
-	for d in (dirIO.GetDirectories srcDir) do
-		n += AlecSettings_copyTree d (dstDir + "\\" + (filenameFromPath d))
-	n
+	(dotNetClass "System.IO.Directory").CreateDirectory (getFilenamePath dst)
+	(dotNetClass "System.IO.File").Copy src dst true
 )
 
 fn AlecSettings_emptyDir path =
@@ -48,130 +60,205 @@ fn AlecSettings_emptyDir path =
 	dirIO.CreateDirectory path
 )
 
--- copies the customizations of this PC into root/UserSettings and root/UI; returns how many files
-fn AlecSettings_collect root settingsDir uiDir =
+-- copies a folder with everything in it
+fn AlecSettings_copyTree srcDir dstDir =
+(
+	local dirIO = dotNetClass "System.IO.Directory"
+	dirIO.CreateDirectory dstDir
+	for f in (dirIO.GetFiles srcDir) do AlecSettings_copyFileTo f (dstDir + "\\" + (filenameFromPath f))
+	for d in (dirIO.GetDirectories srcDir) do
+		AlecSettings_copyTree d (dstDir + "\\" + (filenameFromPath d))
+)
+
+-- copies the shortcuts, toolbars and menus of this PC into root/UserSettings and root/UI; returns how many files
+fn AlecSettings_collect root dirs =
 (
 	local n = 0
 	for pattern in #("*.hsx", "*.qmnx", "*.mnx") do
-		for f in (getFiles (settingsDir + "\\" + pattern)) do (AlecSettings_copyFile f (root + "\\UserSettings"); n += 1)
-	for name in #("MaxStartUI.cuix", "MaxStartUI.cuix.layout") do
-		if doesFileExist (uiDir + "\\" + name) do (AlecSettings_copyFile (uiDir + "\\" + name) (root + "\\UI"); n += 1)
-	if (dotNetClass "System.IO.Directory").Exists (uiDir + "\\Workspaces") do
-		n += AlecSettings_copyTree (uiDir + "\\Workspaces") (root + "\\UI\\Workspaces")
+		for f in (getFiles (dirs.settingsDir + "\\" + pattern)) do
+		(
+			AlecSettings_copyFileTo f (root + "\\UserSettings\\" + (filenameFromPath f))
+			n += 1
+		)
+	local ui = root + "\\UI\\"
+	local pairs = #(
+		#(dirs.uiDir + "\\MaxStartUI.cuix", ui + "MaxStartUI.cuix"),
+		#(dirs.uiDir + "\\MaxStartUI.cuix.layout", ui + "MaxStartUI.cuix.layout")
+	)
+	if dirs.workspace != undefined do
+		join pairs #(
+			#(dirs.workspace + ".cuix", ui + "Toolbars.cuix"),
+			#(dirs.workspace + ".cuix.layout", ui + "Toolbars.cuix.layout"),
+			#(dirs.workspace + ".mnxpath", ui + "Menus.mnxpath")
+		)
+	for p in pairs do
+		if doesFileExist p[1] do (AlecSettings_copyFileTo p[1] p[2]; n += 1)
 	n
 )
 
--- the user folder inside the .mnxpath files (C:/Users/<name>/) points to this user
-fn AlecSettings_fixMenuPaths workspacesDir =
+-- rewrites the text of every file in root named pattern with fixFn
+fn AlecSettings_rewriteFiles root pattern fixFn =
 (
 	local fileIO = dotNetClass "System.IO.File"
-	local regex = dotNetClass "System.Text.RegularExpressions.Regex"
 	local utf8Bom = dotNetObject "System.Text.UTF8Encoding" true
-	local userHome = (substituteString (AlecSettings_userProfile()) "\\" "/") + "/"
 	local everywhere = (dotNetClass "System.IO.SearchOption").AllDirectories
-	for f in ((dotNetClass "System.IO.Directory").GetFiles workspacesDir "*.mnxpath" everywhere) do
+	for f in ((dotNetClass "System.IO.Directory").GetFiles root pattern everywhere) do
 	(
 		local text = fileIO.ReadAllText f
-		local fixed = regex.Replace text "(?i)[A-Z]:/Users/[^/\\r\\n]+/" userHome
+		local fixed = fixFn text
 		if fixed != text do fileIO.WriteAllText f fixed utf8Bom
 	)
 )
 
--- a folder Export made (or one that holds it)
-fn AlecSettings_packRoot picked =
+fn AlecSettings_neutral text =
 (
-	local dirIO = dotNetClass "System.IO.Directory"
-	local root = undefined
-	for candidate in #(picked, picked + "\\AlecSettings") while root == undefined do
-		if dirIO.Exists (candidate + "\\UserSettings") and dirIO.Exists (candidate + "\\UI") do root = candidate
-	root
+	(dotNetClass "System.Text.RegularExpressions.Regex").Replace text "(?i)[A-Z]:[/\\\\]Users[/\\\\][^/\\\\\r\n\"<>]+" AlecSettings_userToken
 )
 
--- returns how many files went into <target>\AlecSettings
+fn AlecSettings_local text =
+(
+	substituteString text AlecSettings_userToken (substituteString (AlecSettings_userProfile()) "\\" "/")
+)
+
+-- the .NET zip class; the assembly is named differently in older .NET
+fn AlecSettings_zipClass =
+(
+	try (dotnet.loadAssembly "System.IO.Compression.ZipFile")
+	catch (dotnet.loadAssembly "System.IO.Compression.FileSystem")
+	dotNetClass "System.IO.Compression.ZipFile"
+)
+
+-- returns how many files went into <target>\AlecSettings.zip
 fn AlecSettings_exportTo target dirs =
 (
-	local root = target + "\\AlecSettings"
+	local root = (getDir #temp) + "\\AlecSettingsPack"
 	AlecSettings_emptyDir root
-	local n = AlecSettings_collect root dirs.settingsDir dirs.uiDir
-	if n == 0 do throw ("Nothing to export: no customizations found in " + dirs.settingsDir + " and " + dirs.uiDir)
+	local n = AlecSettings_collect root dirs
+	AlecSettings_rewriteFiles root "*.mnxpath" AlecSettings_neutral
+	if n == 0 do throw ("Nothing to export: no shortcuts, toolbars or menus found in " + dirs.settingsDir + " and " + dirs.uiDir)
+	local zipFile = target + "\\AlecSettings.zip"
+	(dotNetClass "System.IO.File").Delete zipFile
+	(AlecSettings_zipClass()).CreateFromDirectory root zipFile
+	(dotNetClass "System.IO.Directory").Delete root true
 	n
 )
 
--- backs up what this PC has, then puts the folder in the pending folder with the menu paths fixed; returns the backup folder
-fn AlecSettings_stage root dirs =
+-- true for the folder inside an Export zip, and for a backup folder (the same layout)
+fn AlecSettings_isPack folder =
 (
-	local stamp = (dotNetClass "System.DateTime").Now.ToString "yyyyMMdd-HHmmss"
-	local backup = dirs.backupDir + "\\" + stamp
-	AlecSettings_collect backup dirs.settingsDir dirs.uiDir
+	local dirIO = dotNetClass "System.IO.Directory"
+	dirIO.Exists (folder + "\\UserSettings") and dirIO.Exists (folder + "\\UI")
+)
+
+-- unpacks an Export zip into the (emptied) folder and returns it
+fn AlecSettings_unzipTo zipFile folder =
+(
+	AlecSettings_emptyDir folder
+	(AlecSettings_zipClass()).ExtractToDirectory zipFile folder
+	if not (AlecSettings_isPack folder) do throw ("Not an Alec settings file: " + zipFile)
+	folder
+)
+
+-- the pending folder is a staging copy of the pack with this user's folder in the paths; copies it over the real files.
+-- The workspace files go to the workspace this Max has; with none, only the shortcuts, menus and MaxStartUI are replaced.
+-- Max is not touched: it keeps what it has until it is restarted
+fn AlecSettings_apply dirs =
+(
+	local pending = dirs.pendingDir
+	local pairs = #(
+		#(pending + "\\UI\\MaxStartUI.cuix", dirs.uiDir + "\\MaxStartUI.cuix"),
+		#(pending + "\\UI\\MaxStartUI.cuix.layout", dirs.uiDir + "\\MaxStartUI.cuix.layout")
+	)
+	for f in (getFiles (pending + "\\UserSettings\\*")) do
+		append pairs #(f, dirs.settingsDir + "\\" + (filenameFromPath f))
+	if dirs.workspace != undefined do
+		join pairs #(
+			#(pending + "\\UI\\Toolbars.cuix", dirs.workspace + ".cuix"),
+			#(pending + "\\UI\\Toolbars.cuix.layout", dirs.workspace + ".cuix.layout"),
+			#(pending + "\\UI\\Menus.mnxpath", dirs.workspace + ".mnxpath")
+		)
+	local n = 0
+	for p in pairs do
+		if doesFileExist p[1] do (AlecSettings_copyFileTo p[1] p[2]; n += 1)
+	n
+)
+
+-- the Preferences option that makes Max rewrite its UI files when it closes: "1" when on
+fn AlecSettings_saveUiOnExit = getINISetting (getMAXIniFile()) "WindowState" "SaveUIonExit"
+
+-- the backups are AlecSettings-backup-<date and time>.zip, in the folder of the zip that was imported; the newest few are kept
+global AlecSettings_backupsKept = 3
+
+-- the backups in the folder, oldest first (the names are date and time)
+fn AlecSettings_backupsIn folder =
+(
+	local found = for f in ((dotNetClass "System.IO.Directory").GetFiles folder "AlecSettings-backup-*.zip") collect f
+	sort found
+)
+
+-- zips what this PC has into dirs.backupDir; the oldest backups beyond AlecSettings_backupsKept are deleted; returns the zip
+fn AlecSettings_backup dirs =
+(
+	local stamp = (dotNetClass "System.DateTime").Now.ToString "yyyyMMdd-HHmmss-fff"
+	local tmp = (getDir #temp) + "\\AlecSettingsBackup"
+	AlecSettings_emptyDir tmp
+	AlecSettings_collect tmp dirs
+	(dotNetClass "System.IO.Directory").CreateDirectory dirs.backupDir
+	local zipFile = dirs.backupDir + "\\AlecSettings-backup-" + stamp + ".zip"
+	(AlecSettings_zipClass()).CreateFromDirectory tmp zipFile
+	(dotNetClass "System.IO.Directory").Delete tmp true
+	local backups = AlecSettings_backupsIn dirs.backupDir
+	for i = 1 to backups.count - AlecSettings_backupsKept do (dotNetClass "System.IO.File").Delete backups[i]
+	zipFile
+)
+
+-- backs up what this PC has (see AlecSettings_backup), replaces it with the folder's; returns #(files replaced, backup zip)
+fn AlecSettings_import root dirs =
+(
+	local backup = AlecSettings_backup dirs
 	AlecSettings_emptyDir dirs.pendingDir
 	AlecSettings_copyTree root dirs.pendingDir
-	AlecSettings_fixMenuPaths (dirs.pendingDir + "\\UI\\Workspaces")
-	backup
+	AlecSettings_rewriteFiles dirs.pendingDir "*.mnxpath" AlecSettings_local
+	local n = AlecSettings_apply dirs
+	(dotNetClass "System.IO.Directory").Delete dirs.pendingDir true
+	#(n, backup)
 )
 
--- the .cmd that waits for the Max with this id to exit, replaces the files from the pending folder, and opens Max again
-fn AlecSettings_cmdText pid dirs maxExe =
+-- what the Max Settings panel (tools/maxSettings.py) calls; none of them asks anything, the panel holds the paths.
+-- Each returns #(files replaced, backup folder) and throws a message when it cannot go on.
+
+-- imports an Export zip; this PC's files are backed up next to it
+fn AlecSettings_importZip zipFile dirs =
 (
-	local lines = #(
-		"@echo off",
-		"echo Waiting for 3ds Max to close (save your scene)...",
-		":wait",
-		"tasklist /FI \"PID eq " + (pid as string) + "\" /NH | find \"3dsmax.exe\" >nul",
-		"if not errorlevel 1 (timeout /t 2 /nobreak >nul & goto wait)",
-		"copy /y \"" + dirs.pendingDir + "\\UserSettings\\*\" \"" + dirs.settingsDir + "\\\" >nul || goto failed",
-		"copy /y \"" + dirs.pendingDir + "\\UI\\MaxStartUI.cuix*\" \"" + dirs.uiDir + "\\\" >nul || goto failed",
-		"robocopy \"" + dirs.pendingDir + "\\UI\\Workspaces\" \"" + dirs.uiDir + "\\Workspaces\" /MIR /NFL /NDL /NJH /NJS /NP >nul",
-		"if errorlevel 8 goto failed",
-		"echo Settings replaced.",
-		"start \"\" \"" + maxExe + "\"",
-		"exit /b 0",
-		":failed",
-		"echo Replacing the settings failed. Nothing more was changed; the backup is in " + dirs.backupDir,
-		"pause"
-	)
-	local text = ""
-	for l in lines do text += l + "\r\n"
-	text
+	if not (doesFileExist zipFile) do throw ("File not found: " + zipFile)
+	dirs.backupDir = trimRight (getFilenamePath zipFile) "\\"
+	local unzipped = (getDir #temp) + "\\AlecSettingsUnzip"
+	local done = AlecSettings_import (AlecSettings_unzipTo zipFile unzipped) dirs
+	(dotNetClass "System.IO.Directory").Delete unzipped true
+	done
 )
 
-fn AlecSettings_export =
+-- the backup to restore: the zip itself, or the newest backup in the folder
+fn AlecSettings_backupToRestore path =
 (
-	local target = getSavePath caption:"Export Max settings: choose where the AlecSettings folder is made"
-	if target != undefined do
+	local newest = undefined
+	if (dotNetClass "System.IO.Directory").Exists path then
 	(
-		local n = undefined
-		try (n = AlecSettings_exportTo target (AlecSettings_defaultDirs()))
-		catch (messageBox ("Export failed:\n" + (getCurrentException())) title:"Alec Tools")
-		if n != undefined do messageBox ("Exported " + (n as string) + " files to\n" + target + "\\AlecSettings") title:"Alec Tools"
+		local backups = AlecSettings_backupsIn path
+		if backups.count > 0 do newest = backups[backups.count]
 	)
+	else if doesFileExist path do newest = path
+	newest
 )
 
--- the replacement has to happen with Max closed, so the .cmd waits for this Max to exit
-fn AlecSettings_import =
+-- puts a backup back; the state before is backed up beside it
+fn AlecSettings_restoreFrom path dirs =
 (
-	local picked = getSavePath caption:"Import Max settings: choose the AlecSettings folder"
-	if picked != undefined do
-	(
-		local root = AlecSettings_packRoot picked
-		if root == undefined then
-			messageBox "That is not an AlecSettings folder (it needs UserSettings and UI inside)." title:"Alec Tools"
-		else
-		(
-			local text = "The shortcuts, quad menus, menus and toolbars of this Max will be replaced by the ones in the folder (a backup is kept).\n\nIt happens when Max closes: save your scene and close Max. It opens again by itself.\n\nContinue?"
-			if queryBox text title:"Alec Tools" do
-			(
-				try
-				(
-					local dirs = AlecSettings_defaultDirs()
-					local backup = AlecSettings_stage root dirs
-					local cmdFile = dirs.pendingDir + "\\apply.cmd"
-					local pid = ((dotNetClass "System.Diagnostics.Process").GetCurrentProcess()).Id
-					(dotNetClass "System.IO.File").WriteAllText cmdFile (AlecSettings_cmdText pid dirs ((getDir #maxroot) + "3dsmax.exe"))
-					ShellLaunch ((dotNetClass "System.Environment").SystemDirectory + "\\cmd.exe") ("/c \"" + cmdFile + "\"")
-					messageBox ("Ready. Close Max now.\nThe current settings are backed up in\n" + backup) title:"Alec Tools"
-				)
-				catch (messageBox ("Import failed:\n" + (getCurrentException())) title:"Alec Tools")
-			)
-		)
-	)
+	local zipFile = AlecSettings_backupToRestore path
+	if zipFile == undefined do throw ("No backup found in " + path)
+	dirs.backupDir = trimRight (getFilenamePath zipFile) "\\"
+	local unzipped = (getDir #temp) + "\\AlecSettingsUnzip"
+	local done = AlecSettings_import (AlecSettings_unzipTo zipFile unzipped) dirs
+	(dotNetClass "System.IO.Directory").Delete unzipped true
+	done
 )

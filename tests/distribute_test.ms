@@ -1,7 +1,7 @@
 -- Test for tools/distribute.ms. Run in Max (needs a scene you do not mind changing):
 --   fileIn @"D:\P R O I E C T E\AI\3DS MAX\tests\distribute_test.ms"
 -- Creates temporary objects (ATtest_*), distributes them, compares positions with values worked out by hand, deletes everything.
--- Prints PASS/FAIL lines to the Listener. Not covered, try by hand: the caddy controls (spinners, Auto, picking the anchor, Reset), Esc closing the caddy
+-- Prints PASS/FAIL lines to the Listener. Not covered, try by hand: the caddy controls (value boxes, Auto, picking the anchor, Reset)
 -- and one Ctrl+Z after OK putting all the objects back.
 
 -- outside the block below: a block is compiled before a fileIn inside it runs
@@ -201,7 +201,7 @@ from qtmax import GetQMaxMainWindow
 c = [w for w in GetQMaxMainWindow().findChildren(QtWidgets.QFrame, AlecTools_caddy.OBJECT_NAME) if w.isVisible()][0]
 c.mode.button(2).click()
 c.mode.button(1).click()
-c.step.setValue(40.0)
+c.step.enter(40.0)
 "
 	if not (check "caddy: a typed step moves the objects and is kept" (not AlecDist_active.autoFill and nearF AlecDist_active.step 40 and AlecDist_active.settings.gaps == false)) do failures += 1
 	python.Execute "

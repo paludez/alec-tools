@@ -1,7 +1,7 @@
--- Grab, Rotate, Scale: a transform typed on a small panel at the mouse (tools/grabCaddy.py). X, Y, Z pick the axis at any time, the rest
--- is the value: a distance in scene units (move), an angle in degrees (rotate), a percent (scale, 100 = unchanged), e.g. "x-100",
--- "z45", "y15+28". Scale with no axis (the same axis key again) scales on all three. The last axis of each mode is kept.
--- The selection changes live while typing (undo off), Enter or a right click accepts as one undo step, Esc puts it back.
+-- Grab, Rotate, Scale: a transform typed on a small panel at the mouse (tools/grabCaddy.py), one field per axis, all applied together:
+-- a distance in scene units (move), an angle in degrees (rotate, X then Y then Z), a percent (scale, 100 = unchanged), e.g. "-100",
+-- "15+28". Scale also has an XYZ field for the axes left empty. Scale always opens on XYZ, move and rotate on X.
+-- The selection changes live while typing (undo off), Enter or a right click accepts as one undo step, a left click elsewhere or the shortcut again puts it back. Esc does nothing.
 -- The axes follow Max's reference coordinate system (View, Screen, World, Parent, Local, Gimbal; Grid and Working Pivot use the world);
 -- rotate and scale follow Max's Use Center. Objects whose parent is also selected follow their parent.
 -- No viewport tool runs: a MAXScript tool gets no keys.
@@ -43,56 +43,47 @@ fn AlecGrab_restore =
 	)
 )
 
--- a rotation about, or a scale along, axis (0 = all three, scale only) of the frame f, as a world matrix
-fn AlecGrab_matrix f axis value =
+-- a rotation about, or a scale along, the axes of the frame f, as a world matrix; v: degrees or percents per axis
+fn AlecGrab_matrix f v =
 (
-	local m
-	if AlecGrab_mode == #rotate then
-		m = case axis of (1: rotateXMatrix value; 2: rotateYMatrix value; default: rotateZMatrix value)
-	else
-	(
-		local k = value / 100.0
-		local s = if axis == 0 then [k, k, k] else [1, 1, 1]
-		if axis != 0 do s[axis] = k
-		m = scaleMatrix s
-	)
+	local m = if AlecGrab_mode == #rotate then rotateXMatrix v.x * rotateYMatrix v.y * rotateZMatrix v.z else scaleMatrix (v / 100.0)
 	inverse f * m * f
 )
 
-fn AlecGrab_apply axis value =
+-- the axes are read after the start is put back: a Local frame read from the last preview would drift
+fn AlecGrab_apply v =
 (
 	for i = 1 to AlecGrab_nodes.count where isValidNode AlecGrab_nodes[i] do
 	(
 		local n = AlecGrab_nodes[i]
-		local f = AlecGrab_axes n
 		n.transform = AlecGrab_start[i]
-		if AlecGrab_mode == #move then in coordsys world move n (f[axis] * value)
-		else AlecTools_transformAbout n (AlecGrab_matrix f axis value) (if AlecGrab_center == undefined then n.pos else AlecGrab_center)
+		local f = AlecGrab_axes n
+		if AlecGrab_mode == #move then in coordsys world move n (v * f)
+		else AlecTools_transformAbout n (AlecGrab_matrix f v) (if AlecGrab_center == undefined then n.pos else AlecGrab_center)
 	)
 )
 
 -- a scale that reaches 0 would flatten the objects for good: they stay as they started
-fn AlecGrab_usable value = AlecGrab_mode != #scale or abs value > 0.01
+fn AlecGrab_usable v = AlecGrab_mode != #scale or (abs v.x > 0.01 and abs v.y > 0.01 and abs v.z > 0.01)
 
 fn AlecGrab_name = case AlecGrab_mode of (#rotate: "Rotate"; #scale: "Scale"; default: "Grab")
 
--- what the caddy calls on every change: axis 1-3 (0 = all, scale only), value in scene units, degrees or percent
-fn AlecGrab_preview axis value =
+-- what the caddy calls on every change: v is a point3 of scene units, degrees or percents per axis
+fn AlecGrab_preview v =
 (
-	AlecTools_rememberSettings (AlecGrab_name()) axis
-	if AlecGrab_usable value then undo off AlecGrab_apply axis value else AlecGrab_restore()
+	if AlecGrab_usable v then undo off AlecGrab_apply v else AlecGrab_restore()
 	redrawViews()
 )
 
-fn AlecGrab_accept axis value =
+fn AlecGrab_accept v =
 (
 	AlecGrab_restore()
 	-- the undo name has to be a literal: undo takes an expression in that place for on/off
-	if AlecGrab_usable value do case AlecGrab_mode of
+	if AlecGrab_usable v do case AlecGrab_mode of
 	(
-		#rotate: undo "Rotate" on AlecGrab_apply axis value
-		#scale: undo "Scale" on AlecGrab_apply axis value
-		default: undo "Grab" on AlecGrab_apply axis value
+		#rotate: undo "Rotate" on AlecGrab_apply v
+		#scale: undo "Scale" on AlecGrab_apply v
+		default: undo "Grab" on AlecGrab_apply v
 	)
 	AlecGrab_accepted = true
 	redrawViews()
@@ -105,9 +96,6 @@ fn AlecGrab_end =
 	AlecGrab_nodes = #()
 	redrawViews()
 )
-
--- the last axis of this mode: X for move and rotate, all three for scale
-fn AlecGrab_lastAxis = AlecTools_recallSettings (AlecGrab_name()) (if AlecGrab_mode == #scale then 0 else 1)
 
 -- the moved nodes, without the ones that follow a selected parent
 fn AlecGrab_begin mode =

@@ -1,7 +1,7 @@
 """Distribute caddy (Shift + click on the button, or a toolbar right click), opened by AlecDist_run (tools/distribute.ms) once the
 session and its preview are up. Every change goes to tools/distribute.ms (AlecDist_change, AlecDist_setStep, ...), which saves it and
 moves the preview again; when fewer than 2 objects are left the caddy closes. The check button moves them in one undo step
-(AlecDist_accept), the cross, Esc or closing puts them back (AlecDist_end).
+(AlecDist_accept), the cross or closing puts them back (AlecDist_end).
 """
 
 import importlib
@@ -36,9 +36,9 @@ class DistributeCaddy(AlecTools_caddy.Caddy):
                                                       lambda: self.update(rt.AlecDist_pickAxes()),
                                                       lambda: self.update(rt.AlecDist_setAxesOf(None)))
         self.reference = self.add_choice("Reference", POINTS, s.reference, 4, lambda: self.store(refill=True))
-        self.step = self.add_value("Step", 0.0, 1.0, 2, suffix, lambda: self.update(rt.AlecDist_setStep(self.step.value())), minimum=0.0)
-        self.gap = self.add_value("Gap", 0.0, 1.0, 2, suffix, lambda: self.update(rt.AlecDist_setGap(self.gap.value())))
-        self.auto = self.add_button("", "Auto: keep the two ends in place", "Work the step and the gap out again", lambda: self.update(rt.AlecDist_auto()))
+        self.step = self.add_value("Step", 0.0, 2, suffix, lambda: self.update(rt.AlecDist_setStep(self.step.value)), minimum=0.0, on_reset=self.auto_values)
+        self.gap = self.add_value("Gap", 0.0, 2, suffix, lambda: self.update(rt.AlecDist_setGap(self.gap.value)), on_reset=self.auto_values)
+        self.auto = self.add_button("", "Auto: keep the two ends in place", "Work the step and the gap out again", self.auto_values)
         self.anchor, self.clear_anchor = self.add_pick("Anchor", "Pick the anchor among the objects: it stays in place",
                                                        "No anchor: the lowest object stays in place",
                                                        lambda: self.update(rt.AlecDist_pickAnchor()),
@@ -48,6 +48,11 @@ class DistributeCaddy(AlecTools_caddy.Caddy):
         self.blend = self.add_toggle("", "Blend rotations: lowest > anchor > highest", s.blend, self.store)
         self.dims = self.add_toggle("", "Show dimensions in the viewports", s.showDims, self.store)
         self.add_footer_button("reset", "↺", "Reset to the defaults", self.reset)
+        self.add_help("Changes show live. Step, Gap: type a value or + - * /,\n"
+                      "middle drag: ladder, right click: Auto\n"
+                      "Anchor: stays in place (none: the lowest object does)\n"
+                      "Align and Blend need an anchor\n"
+                      "Check moves them, cross puts them back")
         self.show_state()
 
     # what applies right now is enabled; the value fields show the step and the gap in use
@@ -55,8 +60,8 @@ class DistributeCaddy(AlecTools_caddy.Caddy):
         sess = rt.AlecDist_active
         s = sess.settings
         has_anchor = sess.anchor is not None
-        AlecTools_caddy.set_quietly(self.step, self.step.setValue, sess.step)
-        AlecTools_caddy.set_quietly(self.gap, self.gap.setValue, sess.gap)
+        self.step.show_value(sess.step)
+        self.gap.show_value(sess.gap)
         self.step.setEnabled(not s.gaps)
         self.gap.setEnabled(s.gaps)
         for b in self.reference.buttons():
@@ -71,6 +76,9 @@ class DistributeCaddy(AlecTools_caddy.Caddy):
         for b in self.align_reference.buttons():
             b.setEnabled(has_anchor)
         self.blend.setEnabled(has_anchor)
+
+    def auto_values(self):
+        self.update(rt.AlecDist_auto())
 
     # enough = what the change gave: false when fewer than 2 objects are left
     def update(self, enough):

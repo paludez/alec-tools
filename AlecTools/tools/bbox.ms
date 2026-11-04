@@ -145,7 +145,7 @@ fn AlecBBox_removePreview sess =
 	sess.cages = #()
 )
 
--- refit = only the offset changed: the cages there are resized in place when they are still the same ones (a drag on the spinner
+-- refit = only the offset changed: the cages there are resized in place when they are still the same ones (a drag on the value
 -- would otherwise delete and make every cage again on each step); else, and always without refit, they are made again
 fn AlecBBox_updatePreview sess refit:false =
 (
@@ -251,13 +251,15 @@ fn AlecBBox_clearAnchor =
 -- what can be clicked when nothing usable is selected: a closed group is picked through its head
 fn AlecBBox_isPickable node = AlecTools_isMeasurable node or AlecTools_isClosedHead node
 
--- the sources of the selection; with none, waits in the prompt line for the user to click an object (right click or Esc gives up)
+-- the sources of the selection; with none, waits for the user to click an object, with a tag in the viewport saying so (right click or Esc gives up)
 fn AlecBBox_waitForSources =
 (
 	local sources = AlecBBox_sources (selection as array)
 	if sources.count == 0 do
 	(
+		AlecTools_showPickTag "BBox: click an object"
 		pickObject prompt:"BBox: pick an object (geometry, shape or closed group), right click or Esc = cancel" filter:AlecBBox_isPickable select:true
+		AlecTools_closeCaddy()
 		sources = AlecBBox_sources (selection as array)
 	)
 	sources

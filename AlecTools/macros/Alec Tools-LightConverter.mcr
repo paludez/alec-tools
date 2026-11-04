@@ -6,6 +6,6 @@ buttonText:"Lights"
 	on execute do
 	(
 		fileIn (AlecTools_path "tools/lightConverter.ms")
-		AlecLight_run()
+		execute "AlecLight_run()"
 	)
 )

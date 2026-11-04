@@ -7,7 +7,7 @@ from PySide6 import QtWidgets
 from qtmax import GetQMaxMainWindow
 def check(label, ok):
     print(('PASS ' if ok else 'FAIL ') + label)
-e = AlecToolbar.evaluate
+e = AlecToolbar.AlecTools_caddy.evaluate
 check('evaluate: 15+28', e('15+28') == 43)
 check('evaluate: 30/2', e('30/2') == 15)
 check('evaluate: -(2+3)*1,5', e('-(2+3)*1,5') == -7.5)

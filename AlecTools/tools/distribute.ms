@@ -1,7 +1,7 @@
 -- Distribute: the selected objects are spread along one axis, with equal steps between a reference point of each (Positions)
 -- or with equal space between their bounding boxes (Gaps).
 -- Click: distributes at once with the last settings. Shift + click (or a toolbar right click) opens the caddy (tools/distributeCaddy.py): the objects move live as a preview with undo off, every change starts again
--- from where they were; OK moves them again in one undo step, Cancel or Esc puts them back.
+-- from where they were; OK moves them again in one undo step, Cancel puts them back.
 -- The step (or gap) starts at the value that keeps the two ends in place; a typed value is used as a fixed step until the mode, axis or reference changes, or Auto.
 -- Axes: World, or Local = the axes (rotation without scale) of any object picked for them, or else of the anchor; with neither, Local uses the world.
 -- The anchor is picked in the caddy among the objects: it stays in place and the others go on both sides of it; without one the lowest object stays.
@@ -428,7 +428,9 @@ fn AlecDist_run showCaddy:true =
 (
 	AlecTools_closeCaddy()
 	local sources = AlecDist_sources (selection as array)
-	if sources.count < 2 then
+	if selection.count == 0 then
+		displayTempPrompt "select obj first" 3000
+	else if sources.count < 2 then
 		displayTempPrompt "Distribute: select at least 2 objects" 3000
 	else
 	(

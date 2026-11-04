@@ -11,7 +11,17 @@ fn AlecPopupTest_check label ok =
 	if not ok do append AlecPopupTest_failed label
 )
 
+-- python.Execute gives #success, not the value: the results come back through a temporary global
+fn AlecPopupTest_python code =
+(
+	python.Execute ("rt.ATtest_value = " + code)
+	local value = globalVars.get #ATtest_value
+	globalVars.remove #ATtest_value
+	value
+)
+
 python.Execute "
+from pymxs import runtime as rt
 import AlecToolbar
 import AlecTools_caddy
 from PySide6 import QtWidgets
@@ -40,8 +50,8 @@ def shown(row, axis):
 
 	macros.run "Alec Tools" "TransformPopup"
 	AlecPopupTest_check "the popup opens" (AlecTools_caddyOpen == "Transform Popup")
-	AlecPopupTest_check "it has the six rows" ((python.Execute "row_count()") == 6)
-	AlecPopupTest_check "W Move shows the position" ((python.Execute "shown(0, 0)") == "10.000")
+	AlecPopupTest_check "it has the six rows" ((AlecPopupTest_python "row_count()") == 6)
+	AlecPopupTest_check "W Move shows the position" ((AlecPopupTest_python "shown(0, 0)") == "10.000")
 
 	python.Execute "type_into(0, 0, '15+28')"
 	AlecPopupTest_check "typing 15+28 in W Move X moves the box" (abs (b.pos.x - 43) < 0.001)
@@ -52,15 +62,15 @@ def shown(row, axis):
 	python.Execute "type_into(4, 0, '200')"
 	AlecPopupTest_check "Scale X 200 scales the box" (abs (b.scale.x - 2) < 0.001)
 	AlecToolbar_refresh()
-	AlecPopupTest_check "Size X follows the scale" ((python.Execute "shown(5, 0)") == "40.000")
+	AlecPopupTest_check "Size X follows the scale" ((AlecPopupTest_python "shown(5, 0)") == "40.000")
 
 	b.pos = [100, 0, 0]
 	AlecToolbar_refresh()
-	AlecPopupTest_check "the fields follow a change of the object" ((python.Execute "shown(0, 0)") == "100.000")
+	AlecPopupTest_check "the fields follow a change of the object" ((AlecPopupTest_python "shown(0, 0)") == "100.000")
 
 	clearSelection()
 	AlecToolbar_refresh()
-	AlecPopupTest_check "nothing selected: the boxes are off" (not (python.Execute "boxes(0)[0].isEnabled()"))
+	AlecPopupTest_check "nothing selected: the boxes are off" (not (AlecPopupTest_python "boxes(0)[0].isEnabled()"))
 
 	macros.run "Alec Tools" "TransformPopup"
 	AlecPopupTest_check "the macro run again closes it" (AlecTools_caddyOpen == "")

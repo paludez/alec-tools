@@ -264,7 +264,7 @@ import AlecTools_caddy
 from PySide6 import QtWidgets
 from qtmax import GetQMaxMainWindow
 c = [w for w in GetQMaxMainWindow().findChildren(QtWidgets.QFrame, AlecTools_caddy.OBJECT_NAME) if w.isVisible()][0]
-c.offset.setValue(3.0)
+c.offset.enter(3.0)
 c.copy.click()
 "
 	if not (check "caddy: offset 3 with + copy saves the settings and makes 2 cages" (AlecBBox_active.settings.offset == 3.0 and AlecBBox_active.settings.addCopy and AlecBBox_active.cages.count == 2)) do failures += 1

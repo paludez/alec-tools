@@ -1,23 +1,8 @@
-macroScript ExportSettings
+macroScript MaxSettings
 category:"Alec Tools"
-toolTip:"Export Settings - shortcuts, quad menus, menus and toolbars of this Max, to a folder for another PC"
-buttonText:"Export Settings"
+toolTip:"Max Settings - Export, Import and Restore the shortcuts, toolbars and menus of this Max; run again closes it"
+buttonText:"Max Settings"
+iconName:":/Icons/CommandPanel/Motion/BipedRollout/MotionMixer/ReloadFiles_32.png"
 (
-	on execute do
-	(
-		fileIn (AlecTools_path "tools/settingsTransfer.ms")
-		execute "AlecSettings_export()"
-	)
-)
-
-macroScript ImportSettings
-category:"Alec Tools"
-toolTip:"Import Settings - replaces the shortcuts, quad menus, menus and toolbars with the ones from a folder (applies when Max closes)"
-buttonText:"Import Settings"
-(
-	on execute do
-	(
-		fileIn (AlecTools_path "tools/settingsTransfer.ms")
-		execute "AlecSettings_import()"
-	)
+	on execute do python.ExecuteFile (AlecTools_path "tools/maxSettings.py")
 )

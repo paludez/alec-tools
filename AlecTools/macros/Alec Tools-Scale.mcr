@@ -1,11 +1,14 @@
 macroScript Scale
 category:"Alec Tools"
-toolTip:"Scale - type a scale at the mouse in percent: all three axes, or X, Y or Z for one (the same key again: all three); the selection scales live about Max's Use Center; Enter or right click accepts, Esc cancels"
+toolTip:"Scale - type a scale at the mouse in percent: starts on XYZ, Tab goes to X, Y, Z and back; the selection scales live about Max's Use Center; Enter or right click accepts, a click elsewhere or the shortcut again cancels"
 buttonText:"Scale"
 (
 	on execute do
 	(
-		fileIn (AlecTools_path "tools/grab.ms")
-		execute "AlecGrab_run #scale"
+		if not (AlecTools_closeIfOpen "Scale") do
+		(
+			fileIn (AlecTools_path "tools/grab.ms")
+			execute "AlecGrab_run #scale"
+		)
 	)
 )

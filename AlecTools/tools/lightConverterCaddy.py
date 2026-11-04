@@ -1,5 +1,5 @@
 """LightConverter caddy, opened by the button through AlecLight_run (tools/lightConverter.ms).
-No preview: the check button converts with the chosen settings (AlecLight_apply, which keeps them for this scene), the cross or Esc
+No preview: the check button converts with the chosen settings (AlecLight_apply, which keeps them for this scene), the cross
 closes without converting. Units only apply going to V-Ray, so they are greyed out going to Arnold.
 """
 
@@ -31,6 +31,8 @@ class LightCaddy(AlecTools_caddy.Caddy):
         self.target = self.add_choice("Convert", TARGETS, s.target, 2, self.show_state)
         self.units = self.add_choice("Units", UNITS, s.units, 2, self.show_state)
         self.renderer = self.add_toggle("", "", s.setRenderer, self.show_state)
+        self.add_help("Units only apply going to V-Ray\n"
+                      "Check converts, cross closes")
         self.show_state()
 
     def show_state(self):

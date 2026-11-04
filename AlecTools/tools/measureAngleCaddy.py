@@ -31,6 +31,9 @@ class MeasureAngleCaddy(AlecTools_caddy.Caddy):
         self.what = self.add_choice("Measure", WHAT, saved[0], 3, self.store)
         self.plane = self.add_choice("Plane", PLANES, saved[1], 3, self.store)
         self.result = self.add_result()
+        self.add_help("Check starts. Points: 4 clicks; Edges, Faces: 2 clicks\n"
+                      "A third click on edges or faces starts a new measure\n"
+                      "Ctrl: plane on / off. Right click or Esc ends")
         # the angle is read from the overlay of the running command; the last one stays after it ends
         timer = QtCore.QTimer(self)
         timer.timeout.connect(self.show_result)

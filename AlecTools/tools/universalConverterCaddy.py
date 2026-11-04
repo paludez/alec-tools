@@ -1,5 +1,5 @@
 """UniversalConverter caddy (Shift + click on the button, or a toolbar right click), opened by AlecConv_run (tools/universalConverter.ms).
-No preview: the check button converts with the chosen settings (AlecConv_apply, which keeps them for this scene), the cross or Esc
+No preview: the check button converts with the chosen settings (AlecConv_apply, which keeps them for this scene), the cross
 closes without converting. Rows that do not apply to the chosen target are greyed out.
 """
 
@@ -33,6 +33,8 @@ class ConverterCaddy(AlecTools_caddy.Caddy):
         self.mode = self.add_choice("VRayMtl", MODES, s.vrayMode, 2, self.show_state)
         self.tint = self.add_toggle("", "Tint specular on metals", s.tintMetals, self.show_state)
         self.result = self.add_choice("Result", RESULTS, 2 if s.copyMode else 1, 2, self.show_state)
+        self.add_help("Greyed rows do not apply to the chosen target\n"
+                      "Check converts, cross closes")
         self.show_state()
 
     def show_state(self):

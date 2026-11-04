@@ -2,7 +2,8 @@
 Transform Type-In. Three boxes: Move (W, L), Rotate (W, L) and Scale / Size (% and the scene unit), each with its icon at the top
 left. The rows are AlecToolbar.TransformFields, so typing, arithmetic, the middle-drag ladder and the right click reset work as on
 the toolbar, and they follow the selection through AlecToolbar.refresh_all. X, Y, Z have no letters: the frame of their box is
-red, green and blue, as Max's gizmo. Only the macro run again closes it (no Esc). It opens without the focus: click a box to type, Tab goes on.
+red, green and blue, as Max's gizmo. The macro run again or a click elsewhere closes it (no Esc). It opens without the focus: click a box to type, Tab goes on.
+A mini help under the boxes, unless it is turned off in the toolbar editor.
 """
 
 import importlib
@@ -23,6 +24,12 @@ import AlecTools_caddy
 importlib.reload(AlecTools_caddy)
 
 SECTION = "Transform Popup"
+HELP = ("Type a value or + - * /, Enter applies, Tab: next\n"
+        "Middle drag: ladder (on the name: X Y Z)\n"
+        "Rotate, Shift: 180, 90, 45... steps\n"
+        "Right click: reset (on the name: X Y Z)\n"
+        "W world, L local\n"
+        "A click elsewhere or the shortcut closes")
 
 # ---- settings to change by hand ----
 
@@ -49,6 +56,7 @@ FIELD_HEIGHT = 18
 #   QLabel        the letters W / L / % / unit
 #   QLineEdit     the boxes: Max's spinner colors (fill #646464, border #3e3e3e, text #dcdcdc); :disabled is nothing selected
 #   fieldX/Y/Z    the border of the X, Y and Z boxes, faintly red, green and blue; :focus is the box being typed in
+#   #help         the mini help: a box like the groups, the panel has no background to read it on
 STYLE = """
 #AlecToolsCaddy { background: transparent; border: none; }
 QFrame#group { background: #444444; border: 1px solid #222222; border-radius: 0px; }
@@ -61,6 +69,7 @@ QLineEdit#fieldZ { border-color: #44546b; }
 QLineEdit#fieldX:focus { border-color: #b07a7a; }
 QLineEdit#fieldY:focus { border-color: #7ab07a; }
 QLineEdit#fieldZ:focus { border-color: #7a90b0; }
+QLabel#help { color: #a0a0a0; background: #444444; border: 1px solid #222222; padding: 3px 7px; }
 """
 
 
@@ -85,6 +94,9 @@ def groups():
 
 
 class TransformPopup(AlecTools_caddy.Caddy):
+    CLICK_AWAY = True
+    KEY_TOGGLES = True
+
     def __init__(self):
         super().__init__(SECTION, SECTION, "", "", bare=True)
 
@@ -122,8 +134,10 @@ class TransformPopup(AlecTools_caddy.Caddy):
         self.setStyleSheet(self.styleSheet() + STYLE)
         self.body.setContentsMargins(OUTER_PAD, OUTER_PAD, OUTER_PAD, OUTER_PAD)
         self.rows.setVerticalSpacing(GROUP_GAP)
+        self.body.setSpacing(GROUP_GAP)
         for row, (icon, rows) in enumerate(groups()):
             self.rows.addWidget(self.group(icon, rows, config), row, 0)
+        self.add_help(HELP)
         # the same width for every name, so the boxes line up across the groups
         width = max(f.label.sizeHint().width() for f in self.fields)
         for fields in self.fields:
@@ -139,18 +153,13 @@ class TransformPopup(AlecTools_caddy.Caddy):
                 box.edited = False
         super().closeEvent(event)
 
-    # only the macro closes it: no Esc timer (the caddy's own), and Esc in a box does nothing. It opens without taking the focus,
-    # so the shortcut still reaches Max (Max's shortcuts are off while a box has the focus) and closes it
+    # it opens without taking the focus, so the shortcut still reaches Max (Max's shortcuts are off while a box has the focus,
+    # then the panel sees the shortcut itself) and closes it
     def showEvent(self, event):
         super().showEvent(event)
-        self.esc_timer.stop()
         # the panel itself holds the focus: left alone, Qt gives it to the first box when the window is activated
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
         self.setFocus()
-
-    def keyPressEvent(self, event):
-        if event.key() != QtCore.Qt.Key_Escape:
-            super().keyPressEvent(event)
 
 
 def run():

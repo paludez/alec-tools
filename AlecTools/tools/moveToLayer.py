@@ -212,8 +212,8 @@ class MoveToLayerPopup(QtWidgets.QWidget):
                 if item:
                     self.pick(self.layer_of(item))
                 return True
+            # a Popup window closes itself on Esc; Esc does nothing on the panels, it crashed Max
             if key == QtCore.Qt.Key_Escape:
-                self.close()
                 return True
         return super().eventFilter(obj, event)
 

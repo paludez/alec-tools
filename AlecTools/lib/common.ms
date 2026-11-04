@@ -50,3 +50,17 @@ fn AlecTools_closeCaddy =
 (
 	if AlecTools_caddyOpen != "" do python.Execute "import AlecTools_caddy\nAlecTools_caddy.close_all()"
 )
+
+-- a tag in the active viewport while a tool waits for an object to be clicked; AlecTools_closeCaddy() takes it away. No quotes in text
+fn AlecTools_showPickTag text =
+(
+	python.Execute ("import AlecTools_caddy\nAlecTools_caddy.show_pick_tag('" + text + "')")
+)
+
+-- for a macro that toggles its panel: closes it when it is the open one, and says so
+fn AlecTools_closeIfOpen section =
+(
+	local isOpen = AlecTools_caddyOpen == section
+	if isOpen do AlecTools_closeCaddy()
+	isOpen
+)
