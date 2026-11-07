@@ -122,14 +122,18 @@ fn AlecTools_switchTool section file call =
 	)
 )
 
--- runs f (a function that picks or starts a tool) with Max's snap toggle set to on:, and puts the toggle back after, also when f
--- stops with an error
+-- runs f (a function that picks or starts a tool) with Max's snap toggle set to on: and its rubber band off, and puts both back after,
+-- also when f stops with an error
 fn AlecTools_withSnaps f on:true =
 (
 	local wasOn = snapMode.active
+	local wasBand = snapMode.displayRubberBand
 	snapMode.active = on
-	local result = try (f()) catch (snapMode.active = wasOn; throw())
+	-- Max's own rubber band would draw a line from the first picked point to the mouse, over the tool's own lines
+	snapMode.displayRubberBand = false
+	local result = try (f()) catch (snapMode.active = wasOn; snapMode.displayRubberBand = wasBand; throw())
 	snapMode.active = wasOn
+	snapMode.displayRubberBand = wasBand
 	result
 )
 

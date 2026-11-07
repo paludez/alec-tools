@@ -5,6 +5,8 @@
 -- Right click or Esc ends the command and the lines and texts go from the viewports.
 
 global AlecMeasure_overlay = undefined
+-- the color of the total, area and perimeter text: cyan
+global AlecMeasure_labelColor = color 0 255 255
 
 fn AlecMeasure_draw = if AlecMeasure_overlay != undefined do AlecTools_drawOverlay AlecMeasure_overlay
 
@@ -62,10 +64,10 @@ fn AlecMeasure_buildOverlay points area:false =
 	(
 		if points.count > 2 do
 			append ov.labels #(AlecTools_average points, "Area: " + AlecMeasure_formatArea (AlecMeasure_area points) + \
-				"  Perimeter: " + units.formatValue (AlecMeasure_total points closed:true))
+				"  Perimeter: " + units.formatValue (AlecMeasure_total points closed:true), [0, 0, 0], AlecMeasure_labelColor)
 	)
 	else if points.count > 2 do
-		append ov.labels #(points[points.count], "Total: " + units.formatValue (AlecMeasure_total points))
+		append ov.labels #(points[points.count], "Total: " + units.formatValue (AlecMeasure_total points), [18, 26, 0], AlecMeasure_labelColor)
 	ov
 )
 
@@ -97,13 +99,9 @@ fn AlecMeasure_show =
 	redrawViews()
 )
 
--- the mode of the scene (Distance unless Ctrl chose Area before), taken when the command starts
-fn AlecMeasure_recall = AlecMeasure_areaMode = AlecTools_recallSettings "Measure" false
-
 fn AlecMeasure_toggleArea =
 (
 	AlecMeasure_areaMode = not AlecMeasure_areaMode
-	AlecTools_rememberSettings "Measure" AlecMeasure_areaMode
 	AlecMeasure_show()
 )
 
@@ -113,6 +111,7 @@ tool AlecMeasure_tool
 	(
 		AlecMeasure_fixed = #()
 		AlecMeasure_cursor = undefined
+		AlecMeasure_areaMode = false
 		AlecMeasure_overlay = AlecTools_Overlay()
 		AlecTools_beginOverlayTool AlecMeasure_draw AlecMeasure_toggleArea
 	)
@@ -144,7 +143,4 @@ tool AlecMeasure_tool
 fn AlecMeasure_pick = startTool AlecMeasure_tool snap:#3D prompt:(AlecMeasure_prompt #() AlecMeasure_areaMode)
 
 fn AlecMeasure_run =
-(
-	AlecMeasure_recall()
 	AlecTools_withSnaps AlecMeasure_pick
-)

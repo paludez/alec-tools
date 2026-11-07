@@ -3,7 +3,7 @@
 --   AlecTools_beginOverlayTool AlecX_draw ctrlAction ... AlecTools_endOverlayTool() (lib/overlayTool.ms, never the callback directly)
 -- The overlay is filled when something changes, not on every redraw. Lengths are written with units.formatValue (scene units).
 
--- boxes = #(bottom 4 corners, top 4 corners), lines = #(p1, p2), labels = #(point, text)
+-- boxes = #(bottom 4 corners, top 4 corners), lines = #(p1, p2), labels = #(point, text), #(point, text, pixel shift) or #(point, text, pixel shift, color)
 struct AlecTools_Overlay (boxes = #(), lines = #(), labels = #(), boxColor = green, lineColor = yellow, textColor = yellow)
 
 -- the box lo..hi of frame, as world corners
@@ -23,10 +23,10 @@ fn AlecTools_addDimension ov p1 p2 tick length =
 	append ov.labels #((p1 + p2) / 2 + tick * 1.5, units.formatValue length)
 )
 
--- text at a world point with a black outline (drawn shifted 1 pixel around it), so it reads on any background
-fn AlecTools_drawLabel p text col =
+-- text at a world point, moved by shift pixels, with a black outline (drawn shifted 1 pixel around it), so it reads on any background
+fn AlecTools_drawLabel p text col shift =
 (
-	local s = gw.hTransPoint p
+	local s = (gw.hTransPoint p) + shift
 	for d in #([-1, 0, 0], [1, 0, 0], [0, -1, 0], [0, 1, 0], [-1, -1, 0], [1, 1, 0], [-1, 1, 0], [1, -1, 0]) do
 		gw.hText (s + d) text color:black
 	gw.hText s text color:col
@@ -44,7 +44,7 @@ fn AlecTools_drawOverlay ov =
 	)
 	gw.setColor #line ov.lineColor
 	for l in ov.lines do gw.polyline l false
-	for t in ov.labels do AlecTools_drawLabel t[1] t[2] ov.textColor
+	for t in ov.labels do AlecTools_drawLabel t[1] t[2] (if t.count > 3 then t[4] else ov.textColor) (if t.count > 2 then t[3] else [0, 0, 0])
 	gw.enlargeUpdateRect #whole
 	gw.updateScreen()
 )
