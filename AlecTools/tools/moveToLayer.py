@@ -12,6 +12,8 @@ from pymxs import runtime as rt
 from PySide6 import QtCore, QtGui, QtWidgets
 from qtmax import GetQMaxMainWindow
 
+import AlecTools_caddy
+
 COL_HIDE, COL_FREEZE, COL_RENDER, COL_CURRENT, COL_NAME = range(5)
 STATE_COLS = (COL_HIDE, COL_FREEZE, COL_RENDER)
 ICON_COLS = STATE_COLS + (COL_CURRENT,)
@@ -21,6 +23,13 @@ FREEZE_ICON, RENDER_ICON = ":/Icons/MainUI/Snow_24.png", ":/Icons/MainUI/Teapot_
 CURRENT_ICON, OTHER_LAYER_ICON = ":/Icons/Layers/SetLayer_48.png", ":/AlecIconsLight/Layers/SetLayer_24.png"
 OFF = "–"
 WIDTH, MAX_HEIGHT = 340, 520
+# the caddies' look (lib/AlecTools_caddy.py), and the layer tree in the same colors
+STYLE = AlecTools_caddy.STYLE + """
+QTreeWidget {{ background: {chip}; color: {text}; border: none; border-radius: 3px; outline: none; }}
+QTreeWidget::item {{ padding: 1px 0px; }}
+QTreeWidget::item:hover {{ background: {chip_hover}; }}
+QTreeWidget::item:selected {{ background: {accent}; color: {value}; }}
+""".format(**AlecTools_caddy.COLORS)
 
 
 # the icon of a state column, or None for a dash: the eye is always shown, freeze and render only when on
@@ -33,12 +42,8 @@ def state_icon(layer, col):
 
 
 def toggle_state(layer, col):
-    if col == COL_HIDE:
-        layer.isHidden = not layer.isHidden
-    elif col == COL_FREEZE:
-        layer.isFrozen = not layer.isFrozen
-    else:
-        layer.renderable = not layer.renderable
+    what = {COL_HIDE: "hide", COL_FREEZE: "freeze"}.get(col, "render")
+    rt.AlecMoveToLayer_toggle(layer, rt.Name(what))
 
 
 def child_layers(layer):
@@ -62,32 +67,47 @@ def color_icon(c):
     return QtGui.QIcon(pix)
 
 
+# Esc does nothing on the popup, the name dialog and the right click menu (it crashed Max): only a click elsewhere or Cancel closes them
+class NameDialog(AlecTools_caddy.NoEscape, QtWidgets.QInputDialog):
+    pass
+
+
 def ask_new_layer(default, parent_layer):
-    name, ok = QtWidgets.QInputDialog.getText(GetQMaxMainWindow(), "New Layer", "Name:", text=default)
-    name = name.strip()
+    dialog = NameDialog(GetQMaxMainWindow())
+    dialog.setWindowTitle("New Layer")
+    dialog.setLabelText("Name:")
+    dialog.setTextValue(default)
+    ok = dialog.exec() == QtWidgets.QDialog.Accepted
+    name = dialog.textValue().strip()
+    dialog.deleteLater()
     if not (ok and name):
         return
     existing = rt.LayerManager.getLayerFromName(name) is not None
     if rt.selection.count == 0:
-        rt.AlecMoveLayer_layer(name, parent_layer).current = True
-        message = "current layer " + name
+        rt.AlecMoveToLayer_makeCurrent(rt.AlecMoveToLayer_layer(name, parent_layer))
+        message = "current layer set to " + name
     else:
-        rt.AlecMoveLayer_moveToNew(rt.selection, name, parent_layer)
-        message = "selection moved to " + name
+        rt.AlecMoveToLayer_moveToNew(rt.selection, name, parent_layer)
+        message = "moved to " + name
     if existing:
         message += " (it already existed and stays where it was)"
     rt.displayTempPrompt("Move to Layer: " + message, 4000)
     rt.redrawViews()
 
 
-class MoveToLayerPopup(QtWidgets.QWidget):
+class MoveToLayerPopup(AlecTools_caddy.NoEscape, QtWidgets.QFrame):
     def __init__(self, parent):
         super().__init__(parent, QtCore.Qt.Popup)
+        # drawn as a caddy; AlecTools_closeCaddy closes it too
+        self.setObjectName(AlecTools_caddy.OBJECT_NAME)
+        self.setStyleSheet(STYLE)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+        # the click that closes it (on its toolbar button, say) does nothing else, so the button does not open it again
+        self.setAttribute(QtCore.Qt.WA_NoMouseReplay)
         self.layers = []
         self.selection_layers = {str(n.layer.name) for n in rt.selection}
 
-        self.search = QtWidgets.QLineEdit(placeholderText="search layer...")
+        self.search = QtWidgets.QLineEdit(placeholderText="Search layer…")
         self.search.textChanged.connect(self.apply_filter)
         self.search.installEventFilter(self)
         new_button = QtWidgets.QPushButton("+ New Layer…")
@@ -145,7 +165,7 @@ class MoveToLayerPopup(QtWidgets.QWidget):
         font.setBold(str(layer.name) in self.selection_layers)
         item.setFont(COL_NAME, font)
         dim = layer.isHidden or layer.isFrozen
-        item.setForeground(COL_NAME, self.palette().color(QtGui.QPalette.Disabled if dim else QtGui.QPalette.Active, QtGui.QPalette.Text))
+        item.setForeground(COL_NAME, QtGui.QColor(AlecTools_caddy.COLORS["disabled" if dim else "text"]))
         item.setIcon(COL_CURRENT, QtGui.QIcon(CURRENT_ICON if layer.current else OTHER_LAYER_ICON))
 
     def apply_filter(self, text):
@@ -169,7 +189,7 @@ class MoveToLayerPopup(QtWidgets.QWidget):
             self.pick(layer)
             return
         if col == COL_CURRENT:
-            layer.current = True
+            rt.AlecMoveToLayer_makeCurrent(layer)
             for other in self.iter_items():
                 self.update_item(other)
             return
@@ -180,11 +200,11 @@ class MoveToLayerPopup(QtWidgets.QWidget):
     def pick(self, layer):
         self.close()
         if rt.selection.count == 0:
-            layer.current = True
-            rt.displayTempPrompt("Move to Layer: current layer " + str(layer.name), 3000)
+            rt.AlecMoveToLayer_makeCurrent(layer)
+            rt.displayTempPrompt("Move to Layer: current layer set to " + str(layer.name), 3000)
         else:
-            count = rt.AlecMoveLayer_move(rt.selection, layer)
-            rt.displayTempPrompt("Move to Layer: %d objects to %s" % (count, layer.name), 3000)
+            count = rt.AlecMoveToLayer_move(rt.selection, layer)
+            rt.displayTempPrompt("Move to Layer: %d objects moved to %s" % (count, layer.name), 3000)
         rt.redrawViews()
 
     # the popup closes first: a Qt popup closes (and is deleted) anyway as soon as the name dialog opens
@@ -197,7 +217,7 @@ class MoveToLayerPopup(QtWidgets.QWidget):
         item = self.tree.itemAt(pos)
         if item is None:
             return
-        menu = QtWidgets.QMenu(self)
+        menu = AlecTools_caddy.Menu(self)
         menu.addAction("New Sublayer…", lambda: self.new_layer(self.layer_of(item)))
         menu.exec(self.tree.viewport().mapToGlobal(pos))
 
@@ -212,9 +232,6 @@ class MoveToLayerPopup(QtWidgets.QWidget):
                 if item:
                     self.pick(self.layer_of(item))
                 return True
-            # a Popup window closes itself on Esc; Esc does nothing on the panels, it crashed Max
-            if key == QtCore.Qt.Key_Escape:
-                return True
         return super().eventFilter(obj, event)
 
     def move_current(self, step):
@@ -226,7 +243,20 @@ class MoveToLayerPopup(QtWidgets.QWidget):
         if nxt:
             self.tree.setCurrentItem(nxt)
 
+    # the popup holds the keyboard, so the macro's shortcut never reaches Max: the same keys pressed on it close it (lib ToggleKey).
+    # Not a plain letter or digit: that one is typed in the search box
+    def cancel(self):
+        self.close()
+
+    def watch_shortcut(self):
+        toggle_key = AlecTools_caddy.ToggleKey(self)
+        typed = toggle_key.modifiers & ~QtCore.Qt.ShiftModifier == QtCore.Qt.NoModifier and any(0x30 <= vk <= 0x5A for vk in toggle_key.keys)
+        if toggle_key.keys and not typed:
+            for widget in [self] + self.findChildren(QtWidgets.QWidget):
+                widget.installEventFilter(toggle_key)
+
     def show_at_cursor(self):
+        self.watch_shortcut()
         rows = sum(1 for _ in self.iter_items())
         height = min(MAX_HEIGHT, 90 + rows * self.tree.sizeHintForRow(0))
         self.resize(WIDTH, height)

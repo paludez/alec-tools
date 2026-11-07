@@ -8,10 +8,12 @@ fn AlecGetMaterials_selectionMaterials =
 	mats
 )
 
-fn AlecGetMaterials_execute tabName:"Get Materials" =
+fn AlecGetMaterials_run tabName:"Get Materials" =
 (
 	local mats = AlecGetMaterials_selectionMaterials()
-	if mats.count == 0 then
+	if selection.count == 0 then
+		displayTempPrompt "Get Materials: select something first" 3000
+	else if mats.count == 0 then
 		displayTempPrompt "Get Materials: the selection has no materials" 3000
 	else
 	(

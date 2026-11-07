@@ -4,5 +4,5 @@ toolTip:"Edit Toolbar - the buttons of the Alec Tools toolbar, their order, sepa
 buttonText:"Edit Toolbar"
 iconName:":/Icons/Common/Settings_24.png"
 (
-	on execute do python.ExecuteFile (AlecTools_path "tools/toolbarEditor.py")
+	on execute do AlecTools_runPython "toolbarEditor.py"
 )

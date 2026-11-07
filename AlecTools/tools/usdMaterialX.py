@@ -4,21 +4,22 @@ The code is in AlecUsdMtlxRead.py (the file) and AlecUsdMtlxBuild.py (the scene)
 """
 
 import importlib
-import sys
 
 from pymxs import runtime as rt
 
-if getattr(rt, "USDImporter", None) is None:
-    raise RuntimeError("USD MaterialX needs the USD for 3ds Max plugin")
-# the plugin loads on first use, with its pxr modules
-rt.pluginManager.loadClass(rt.USDImporter)
 
-TOOLS = rt.AlecTools_path("tools")
-if TOOLS not in sys.path:
-    sys.path.append(TOOLS)
-import AlecUsdMtlxRead
-import AlecUsdMtlxBuild
+def main():
+    if getattr(rt, "USDImporter", None) is None:
+        rt.displayTempPrompt("USD MaterialX: the USD for 3ds Max plugin is not installed", 4000)
+        return
+    # the plugin loads on first use, with its pxr modules
+    rt.pluginManager.loadClass(rt.USDImporter)
+    import AlecUsdMtlxRead
+    import AlecUsdMtlxBuild
 
-importlib.reload(AlecUsdMtlxRead)
-importlib.reload(AlecUsdMtlxBuild)
-AlecUsdMtlxBuild.run()
+    importlib.reload(AlecUsdMtlxRead)
+    importlib.reload(AlecUsdMtlxBuild)
+    AlecUsdMtlxBuild.run()
+
+
+main()

@@ -89,12 +89,14 @@ fn AlecSmartVis_subObjectRun opName =
 		false
 )
 
-fn AlecSmartVis_execute opName =
+fn AlecSmartVis_run opName =
 (
-	if subObjectLevel == undefined or subObjectLevel == 0 then
+	if selection.count == 0 and opName != #unhideAll then
+		displayTempPrompt "Smart Hide: select something first" 3000
+	else if subObjectLevel == undefined or subObjectLevel == 0 then
 		AlecSmartVis_objectRun opName
 	else if AlecSmartVis_subObjectRun opName then
 		redrawViews()
 	else
-		displayTempPrompt "Smart Visibility: this object or sub-object level is not supported" 3000
+		displayTempPrompt "Smart Hide: this object or sub-object level is not supported" 3000
 )

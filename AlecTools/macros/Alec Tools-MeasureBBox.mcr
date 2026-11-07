@@ -4,9 +4,5 @@ toolTip:"Measure BBox - move over objects to see their box and sizes, click keep
 buttonText:"Measure BBox"
 iconName:":/Icons/SnapPivot/reorientBoundingBox_24.png"
 (
-	on execute do
-	(
-		fileIn (AlecTools_path "tools/measureBBox.ms")
-		execute "AlecMBox_run()"
-	)
+	on execute do AlecTools_runTool "measureBBox.ms" "AlecMeasureBBox_run()"
 )

@@ -1,25 +1,35 @@
 """BBox caddy (Shift + click on the button, or a toolbar right click), opened by AlecBBox_run (tools/bbox.ms) once the session
-and its preview are up. Every change goes to AlecBBox_change, which saves it and rebuilds the preview; the check button keeps the
-cages in one undo step (AlecBBox_accept), the cross or closing drops them (AlecBBox_end).
+and its preview are up. Every change goes to AlecBBox_change, which saves it and rebuilds the preview; OK keeps the
+cages in one undo step (AlecBBox_accept), Cancel or closing drops them (AlecBBox_end).
 """
-
-import importlib
-import sys
 
 from pymxs import runtime as rt
 
-LIB = rt.AlecTools_path("lib")
-if LIB not in sys.path:
-    sys.path.append(LIB)
 import AlecTools_caddy
-
-importlib.reload(AlecTools_caddy)
 
 CAGES = [("Combined", 1), ("Each object", 2)]
 AXES = [("World", 1), ("Local", 2)]
+HELP = "\n".join([
+    "The cages show live in the viewports while the caddy is open.",
+    "Cages: one cage around the whole selection, or one per object.",
+    "Axes: along the world axes, or Local = in the axes of an object.",
+    "Axes of (Local only): click, then pick the object whose axes every cage takes;",
+    "    × goes back to each object's own axes (combined: the first object's).",
+    "Offset: added on every side. Type a value or arithmetic (15+2), then Enter;",
+    "    middle drag on the box or its name: up / down changes it, left / right picks the step;",
+    "    right click: back to the default.",
+    "+ copy: a tight cage plus a copy of it with the offset.",
+    "Layer: the cages go into the \"BBox helpers\" layer, else into their object's layer.",
+    "Reset: every option back to its default.",
+    "OK, or Enter with no value being typed: keeps the cages, in one undo step.",
+    "Cancel, or the button / shortcut again: removes them.",
+])
 
 
 class BBoxCaddy(AlecTools_caddy.Caddy):
+    # it has value boxes: the macro's shortcut pressed while typing still closes it
+    KEY_TOGGLES = True
+
     def __init__(self):
         super().__init__("BBox", "BBox", "OK: keep the cages", "Cancel")
 
@@ -33,11 +43,10 @@ class BBoxCaddy(AlecTools_caddy.Caddy):
         self.offset = self.add_value("Offset", s.offset, 2, AlecTools_caddy.unit_suffix(), lambda: self.store(refit=True), on_reset=self.reset_offset)
         self.copy = self.add_toggle("", "+ copy: tight and with offset", s.addCopy, self.store)
         self.layer = self.add_toggle("", "Layer \"BBox helpers\"", s.useLayer, self.store)
-        self.add_footer_button("reset", "↺", "Reset to the defaults", self.reset)
-        self.add_help("Changes show live. Offset: type a value or + - * /,\n"
-                      "middle drag: ladder, right click: default\n"
-                      "Axes of: the object whose axes Local takes\n"
-                      "Check keeps the cages, cross drops them")
+        self.copy.setToolTip("A tight cage, plus a copy of it with the offset")
+        self.layer.setToolTip("On: the cages go into the \"BBox helpers\" layer. Off: into the layer of their object")
+        self.add_footer_button("reset", "Reset", "Back to the defaults", self.reset)
+        self.add_help(HELP)
         self.show_anchor()
 
     def show_anchor(self):

@@ -1,5 +1,5 @@
--- The last choices made in a tool's dialog (its settings struct), kept for the current scene only: a new, reset or opened scene,
--- a new Max session and a reload start again from each tool's defaults. Dialog positions are not settings, they stay in AlecTools.ini.
+-- The last choices made in a tool's caddy (its settings struct), kept for the current scene only: a new, reset or opened scene,
+-- a new Max session and a reload start again from each tool's defaults. Caddy positions are not settings, they stay in AlecTools.ini.
 
 global AlecTools_settings = Dictionary #string
 

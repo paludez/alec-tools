@@ -4,9 +4,5 @@ toolTip:"Measure Gap - click a reference object, move over another to see the sp
 buttonText:"Measure Gap"
 iconName:":/Icons/UVWUnwrapDialog/SpaceHorizontal_24.png"
 (
-	on execute do
-	(
-		fileIn (AlecTools_path "tools/measureGap.ms")
-		execute "AlecGap_run()"
-	)
+	on execute do AlecTools_runTool "measureGap.ms" "AlecMeasureGap_run()"
 )

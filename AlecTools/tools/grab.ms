@@ -1,10 +1,13 @@
 -- Grab, Rotate, Scale: a transform typed on a small panel at the mouse (tools/grabCaddy.py), one field per axis, all applied together:
 -- a distance in scene units (move), an angle in degrees (rotate, X then Y then Z), a percent (scale, 100 = unchanged), e.g. "-100",
 -- "15+28". Scale also has an XYZ field for the axes left empty. Scale always opens on XYZ, move and rotate on X.
--- The selection changes live while typing (undo off), Enter or a right click accepts as one undo step, a left click elsewhere or the shortcut again puts it back. Esc does nothing.
+-- The selection changes live while typing (undo off), Enter or a left click in a viewport accepts as one undo step (the click selects
+-- nothing), a right click or the shortcut again puts it back. Esc does nothing.
 -- The axes follow Max's reference coordinate system (View, Screen, World, Parent, Local, Gimbal; Grid and Working Pivot use the world);
--- rotate and scale follow Max's Use Center. Objects whose parent is also selected follow their parent.
--- No viewport tool runs: a MAXScript tool gets no keys.
+-- rotate and scale follow Max's Use Center. Objects with a selected ancestor follow it; USD prims are left out.
+-- The preview runs with animate off and undo off, so a cancel leaves no keys; the accepted change is made with the user's Auto Key state, like Max's own Move.
+-- At a sub-object level the tools say so and do not start.
+-- No viewport tool runs: a MAXScript tool gets no keys. The caddy sees the clicks itself (AlecTools_caddy.ViewportClicks).
 
 AlecTools_closeCaddy()
 
@@ -35,11 +38,12 @@ fn AlecGrab_axes node =
 	matrix3 f.row1 f.row2 f.row3 [0, 0, 0]
 )
 
+-- the start put back without keys: under Auto Key the preview and the restore must not leave any behind
 fn AlecGrab_restore =
 (
 	undo off
 	(
-		for i = 1 to AlecGrab_nodes.count where isValidNode AlecGrab_nodes[i] do AlecGrab_nodes[i].transform = AlecGrab_start[i]
+		with animate off (for i = 1 to AlecGrab_nodes.count where isValidNode AlecGrab_nodes[i] do AlecGrab_nodes[i].transform = AlecGrab_start[i])
 	)
 )
 
@@ -50,17 +54,23 @@ fn AlecGrab_matrix f v =
 	inverse f * m * f
 )
 
--- the axes are read after the start is put back: a Local frame read from the last preview would drift
-fn AlecGrab_apply v =
+-- v on the nodes as they are, with the animate state the caller has: under Auto Key the move keys what Max's own Move keys
+fn AlecGrab_applyFromStart v =
 (
 	for i = 1 to AlecGrab_nodes.count where isValidNode AlecGrab_nodes[i] do
 	(
 		local n = AlecGrab_nodes[i]
-		n.transform = AlecGrab_start[i]
 		local f = AlecGrab_axes n
 		if AlecGrab_mode == #move then in coordsys world move n (v * f)
 		else AlecTools_transformAbout n (AlecGrab_matrix f v) (if AlecGrab_center == undefined then n.pos else AlecGrab_center)
 	)
+)
+
+-- from the start, which is put back first (the axes are read after it: a Local frame read from the last preview would drift)
+fn AlecGrab_apply v =
+(
+	AlecGrab_restore()
+	AlecGrab_applyFromStart v
 )
 
 -- a scale that reaches 0 would flatten the objects for good: they stay as they started
@@ -71,7 +81,7 @@ fn AlecGrab_name = case AlecGrab_mode of (#rotate: "Rotate"; #scale: "Scale"; de
 -- what the caddy calls on every change: v is a point3 of scene units, degrees or percents per axis
 fn AlecGrab_preview v =
 (
-	if AlecGrab_usable v then undo off AlecGrab_apply v else AlecGrab_restore()
+	if AlecGrab_usable v then with animate off (undo off (AlecGrab_apply v)) else AlecGrab_restore()
 	redrawViews()
 )
 
@@ -81,9 +91,9 @@ fn AlecGrab_accept v =
 	-- the undo name has to be a literal: undo takes an expression in that place for on/off
 	if AlecGrab_usable v do case AlecGrab_mode of
 	(
-		#rotate: undo "Rotate" on AlecGrab_apply v
-		#scale: undo "Scale" on AlecGrab_apply v
-		default: undo "Grab" on AlecGrab_apply v
+		#rotate: undo "Rotate" on AlecGrab_applyFromStart v
+		#scale: undo "Scale" on AlecGrab_applyFromStart v
+		default: undo "Grab" on AlecGrab_applyFromStart v
 	)
 	AlecGrab_accepted = true
 	redrawViews()
@@ -97,25 +107,31 @@ fn AlecGrab_end =
 	redrawViews()
 )
 
--- the moved nodes, without the ones that follow a selected parent
+-- the moved nodes: no USD prims (no pos or scale to set), no node that follows a selected ancestor
 fn AlecGrab_begin mode =
 (
 	AlecGrab_mode = mode
-	AlecGrab_nodes = for o in selection where not (o.parent != undefined and o.parent.isSelected) collect o
+	AlecGrab_nodes = AlecTools_topLevel (for o in selection where not (AlecTools_isUsdPrim o) collect o)
 	AlecGrab_start = for o in AlecGrab_nodes collect o.transform
 	AlecGrab_center = AlecTools_useCenter AlecGrab_nodes
 	AlecGrab_accepted = false
 )
+
+-- a sub-object level of the modify panel: the tools turn objects
+fn AlecGrab_atSubObject = getCommandPanelTaskMode() == #modify and subObjectLevel != undefined and subObjectLevel > 0
 
 -- mode: #move, #rotate or #scale
 fn AlecGrab_run mode =
 (
 	AlecTools_closeCaddy()
 	AlecGrab_mode = mode
-	if selection.count == 0 then displayTempPrompt ((AlecGrab_name()) + ": select something first") 3000
+	local name = AlecGrab_name()
+	if selection.count == 0 then displayTempPrompt (name + ": select something first") 3000
+	else if AlecGrab_atSubObject() then displayTempPrompt (name + ": works on objects, leave the sub-object level first") 3000
 	else
 	(
 		AlecGrab_begin mode
-		python.ExecuteFile (AlecTools_path "tools/grabCaddy.py")
+		if AlecGrab_nodes.count == 0 then displayTempPrompt (name + ": USD prims cannot be moved, select other objects") 3000
+		else python.ExecuteFile (AlecTools_path "tools/grabCaddy.py")
 	)
 )

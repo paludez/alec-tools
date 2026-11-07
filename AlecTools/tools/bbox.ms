@@ -63,7 +63,7 @@ fn AlecBBox_fitCage cage sp =
 	local o = sp.offset
 	local size = sp.b[2] - sp.b[1] + 2 * [o, o, o]
 	size = [amax size.x 0.1, amax size.y 0.1, amax size.z 0.1]
-	local center = (sp.b[1] + sp.b[2]) / 2
+	local center = AlecTools_boundsCenter sp.b
 	local tm = copy sp.frame
 	tm.row4 = [center.x, center.y, center.z - size.z / 2] * sp.frame
 	cage.width = size.x
@@ -229,10 +229,12 @@ fn AlecBBox_change each localAxes offset addCopy useLayer refit:false =
 	AlecBBox_updatePreview AlecBBox_active refit:refit
 )
 
+fn AlecBBox_pickAxesNode = pickObject prompt:"BBox: pick the object whose axes the cages take, right click or Esc = cancel" filter:AlecBBox_notPreview
+
 -- the object whose axes the Local cages take, clicked in the viewport (right click or Esc = keep the one there was)
 fn AlecBBox_pickAnchor =
 (
-	local node = pickObject prompt:"BBox: pick the object whose axes the cages take, right click or Esc = cancel" filter:AlecBBox_notPreview
+	local node = AlecTools_withPickTag "BBox: click the object whose axes the cages take" AlecBBox_pickAxesNode
 	if isValidNode node do
 	(
 		AlecBBox_active.anchor = node
@@ -251,15 +253,15 @@ fn AlecBBox_clearAnchor =
 -- what can be clicked when nothing usable is selected: a closed group is picked through its head
 fn AlecBBox_isPickable node = AlecTools_isMeasurable node or AlecTools_isClosedHead node
 
+fn AlecBBox_pickSource = pickObject prompt:"BBox: pick an object (geometry, shape or closed group), right click or Esc = cancel" filter:AlecBBox_isPickable select:true
+
 -- the sources of the selection; with none, waits for the user to click an object, with a tag in the viewport saying so (right click or Esc gives up)
 fn AlecBBox_waitForSources =
 (
 	local sources = AlecBBox_sources (selection as array)
 	if sources.count == 0 do
 	(
-		AlecTools_showPickTag "BBox: click an object"
-		pickObject prompt:"BBox: pick an object (geometry, shape or closed group), right click or Esc = cancel" filter:AlecBBox_isPickable select:true
-		AlecTools_closeCaddy()
+		AlecTools_withPickTag "BBox: click an object" AlecBBox_pickSource
 		sources = AlecBBox_sources (selection as array)
 	)
 	sources
@@ -271,7 +273,7 @@ fn AlecBBox_applyDirect sess =
 	local cages = undo "BBox" on (AlecBBox_build sess)
 	AlecBBox_watchLayer sess
 	redrawViews()
-	displayTempPrompt ("BBox: " + cages.count as string + " cage(s)") 3000
+	displayTempPrompt ("BBox: " + cages.count as string + (if cages.count == 1 then " cage made" else " cages made")) 3000
 )
 
 -- a caddy that is already open closes first (its preview goes with it), then the tool starts again from the current selection;
@@ -281,7 +283,7 @@ fn AlecBBox_run showCaddy:true =
 	AlecTools_closeCaddy()
 	local sources = AlecBBox_waitForSources()
 	if sources.count == 0 then
-		displayTempPrompt "BBox: nothing to put a cage around" 3000
+		displayTempPrompt "BBox: select something first" 3000
 	else
 	(
 		local sess = AlecBBox_Session settings:(AlecTools_recallSettings "BBox" (AlecBBox_Settings())) sources:sources \

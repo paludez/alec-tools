@@ -8,25 +8,25 @@
 -- Shift + click on the button (or a toolbar right click) opens the caddy (tools/measureAngleCaddy.py): edges and faces, and other planes.
 -- Angles are written both ways (a and 180 - a), since two lines make both. Right click or Esc ends and clears the viewports.
 
-global AlecAngle_overlay = undefined
+global AlecMeasureAngle_overlay = undefined
 
-fn AlecAngle_draw = if AlecAngle_overlay != undefined do AlecTools_drawOverlay AlecAngle_overlay
+fn AlecMeasureAngle_draw = if AlecMeasureAngle_overlay != undefined do AlecTools_drawOverlay AlecMeasureAngle_overlay
 
 -- the angle between two directions, 0..180 degrees
-fn AlecAngle_between u v =
+fn AlecMeasureAngle_between u v =
 (
 	local d = dot (normalize u) (normalize v)
 	acos (amax -1.0 (amin 1.0 d))
 )
 
 -- an angle and the one that completes it to 180, as "a deg / b deg"
-fn AlecAngle_format a =
+fn AlecMeasureAngle_format a =
 (
 	(formattedPrint a format:".1f") + " deg / " + (formattedPrint (180.0 - a) format:".1f") + " deg"
 )
 
 -- the closest points of the lines through p1 p2 and p3 p4: #(on the first, on the second), or undefined when they are parallel
-fn AlecAngle_closest p1 p2 p3 p4 =
+fn AlecMeasureAngle_closest p1 p2 p3 p4 =
 (
 	local u = p2 - p1
 	local v = p4 - p3
@@ -45,7 +45,7 @@ fn AlecAngle_closest p1 p2 p3 p4 =
 )
 
 -- a line from the end of the segment a b nearest to p, out to p, when p is outside the segment
-fn AlecAngle_addExtension ov a b p =
+fn AlecMeasureAngle_addExtension ov a b p =
 (
 	local t = (dot (p - a) (b - a)) / (dot (b - a) (b - a))
 	if t < 0 then append ov.lines #(a, p)
@@ -53,16 +53,16 @@ fn AlecAngle_addExtension ov a b p =
 )
 
 -- the end of the segment a b farther from p
-fn AlecAngle_farEnd a b p = if distance a p > distance b p then a else b
+fn AlecMeasureAngle_farEnd a b p = if distance a p > distance b p then a else b
 
 -- the angle at the meeting points c of the segments p1 p2 and p3 p4, toward each segment's far end, so the click order does not matter
-fn AlecAngle_cornerAngle p1 p2 p3 p4 c =
+fn AlecMeasureAngle_cornerAngle p1 p2 p3 p4 c =
 (
-	AlecAngle_between ((AlecAngle_farEnd p1 p2 c[1]) - c[1]) ((AlecAngle_farEnd p3 p4 c[2]) - c[2])
+	AlecMeasureAngle_between ((AlecMeasureAngle_farEnd p1 p2 c[1]) - c[1]) ((AlecMeasureAngle_farEnd p3 p4 c[2]) - c[2])
 )
 
 -- the overlay of the line points (2 to 4, the last one may be the mouse): the segments, and with both lines the angle where they meet
-fn AlecAngle_linesOverlay points =
+fn AlecMeasureAngle_linesOverlay points =
 (
 	local ov = AlecTools_Overlay()
 	if points.count >= 2 do append ov.lines #(points[1], points[2])
@@ -73,20 +73,20 @@ fn AlecAngle_linesOverlay points =
 		local v = points[4] - points[3]
 		if length u > 0.0001 and length v > 0.0001 do
 		(
-			local c = AlecAngle_closest points[1] points[2] points[3] points[4]
+			local c = AlecMeasureAngle_closest points[1] points[2] points[3] points[4]
 			if c == undefined then
 				append ov.labels #((points[1] + points[2] + points[3] + points[4]) / 4, "parallel")
 			else
 			(
-				AlecAngle_addExtension ov points[1] points[2] c[1]
-				AlecAngle_addExtension ov points[3] points[4] c[2]
+				AlecMeasureAngle_addExtension ov points[1] points[2] c[1]
+				AlecMeasureAngle_addExtension ov points[3] points[4] c[2]
 				local gap = distance c[1] c[2]
 				if gap > 0.01 then
 				(
 					append ov.lines #(c[1], c[2])
 					append ov.labels #((c[1] + c[2]) / 2, "do not meet, closest distance " + units.formatValue gap)
 				)
-				else append ov.labels #(c[1], AlecAngle_format (AlecAngle_cornerAngle points[1] points[2] points[3] points[4] c))
+				else append ov.labels #(c[1], AlecMeasureAngle_format (AlecMeasureAngle_cornerAngle points[1] points[2] points[3] points[4] c))
 			)
 		)
 	)
@@ -94,7 +94,7 @@ fn AlecAngle_linesOverlay points =
 )
 
 -- the points moved onto the plane of the given normal through the first one
-fn AlecAngle_project points normal =
+fn AlecMeasureAngle_project points normal =
 (
 	local n = normalize normal
 	for p in points collect p - n * (dot (p - points[1]) n)
@@ -102,89 +102,102 @@ fn AlecAngle_project points normal =
 
 -- state of the running command, global so the Ctrl watcher (lib/ctrlKey.ms) and the caddy can reach it:
 -- the plane on or off, its normal and name, the clicked line points and the mouse point
-global AlecAngle_flat = false
-global AlecAngle_normal = [0, 0, 1]
-global AlecAngle_planeName = "World XY"
-global AlecAngle_fixed = #()
-global AlecAngle_cursor = undefined
+global AlecMeasureAngle_flat = false
+global AlecMeasureAngle_normal = [0, 0, 1]
+global AlecMeasureAngle_planeName = "World XY"
+global AlecMeasureAngle_fixed = #()
+global AlecMeasureAngle_cursor = undefined
 
 -- the end of the prompt: the plane in use and the keys
-fn AlecAngle_promptTail =
+fn AlecMeasureAngle_promptTail =
 (
-	" | " + (if AlecAngle_flat then AlecAngle_planeName else "3D") + ", Ctrl = 3D/" + AlecAngle_planeName + ", right click or Esc = end"
+	" | " + (if AlecMeasureAngle_flat then AlecMeasureAngle_planeName else "3D") + ", Ctrl = 3D/" + AlecMeasureAngle_planeName + " | right click or Esc = end and clear"
 )
 
-
-fn AlecAngle_prompt =
+fn AlecMeasureAngle_prompt =
 (
-	local tail = AlecAngle_promptTail()
-	local n = AlecAngle_fixed.count
+	local tail = AlecMeasureAngle_promptTail()
+	local n = AlecMeasureAngle_fixed.count
 	if n < 4 then "Measure Angle: click point " + ((n + 1) as string) + " of 4 (line " + (if n < 2 then "1" else "2") + ")" + tail
 	else "Measure Angle: click = new measure" + tail
 )
 
 -- the clicked line points, plus the mouse as the end of a line that has only its start, projected when the plane is on
-fn AlecAngle_linePoints =
+fn AlecMeasureAngle_linePoints =
 (
-	local points = for p in AlecAngle_fixed collect p
-	if AlecAngle_cursor != undefined and (mod points.count 2) == 1 do append points AlecAngle_cursor
-	if AlecAngle_flat and points.count > 0 then AlecAngle_project points AlecAngle_normal else points
+	local points = for p in AlecMeasureAngle_fixed collect p
+	if AlecMeasureAngle_cursor != undefined and (mod points.count 2) == 1 do append points AlecMeasureAngle_cursor
+	if AlecMeasureAngle_flat and points.count > 0 then AlecMeasureAngle_project points AlecMeasureAngle_normal else points
 )
 
-fn AlecAngle_show =
+-- the Measure Angle caddy, while open, shows the last angle in its result line (its module is imported: it put lib on sys.path)
+fn AlecMeasureAngle_showResult =
 (
-	AlecAngle_overlay = AlecAngle_linesOverlay (AlecAngle_linePoints())
-	replacePrompt (AlecAngle_prompt())
+	local labels = AlecMeasureAngle_overlay.labels
+	if AlecTools_caddyOpen == "MeasureAngle" and labels.count > 0 do
+		(python.import "AlecTools_caddy").show_result (labels[labels.count][2] as string)
+)
+
+fn AlecMeasureAngle_show =
+(
+	AlecMeasureAngle_overlay = AlecMeasureAngle_linesOverlay (AlecMeasureAngle_linePoints())
+	AlecMeasureAngle_showResult()
+	replacePrompt (AlecMeasureAngle_prompt())
 	redrawViews()
 )
 
 -- Ctrl keeps the clicked points: the same lines are measured again in the other way
-fn AlecAngle_toggleFlat =
+fn AlecMeasureAngle_toggleFlat =
 (
-	AlecAngle_flat = not AlecAngle_flat
-	AlecAngle_show()
+	AlecMeasureAngle_flat = not AlecMeasureAngle_flat
+	AlecMeasureAngle_show()
 )
 
-tool AlecAngle_tool
+tool AlecMeasureAngle_tool
 (
 	fn track =
 	(
-		AlecAngle_cursor = worldPoint
-		AlecAngle_show()
+		AlecTools_ctrlSeen()
+		AlecMeasureAngle_cursor = worldPoint
+		AlecMeasureAngle_show()
 	)
 
 	on start do
 	(
-		AlecAngle_fixed = #()
-		AlecAngle_cursor = undefined
-		AlecAngle_overlay = AlecTools_Overlay()
-		AlecTools_beginOverlayTool AlecAngle_draw AlecAngle_toggleFlat
+		AlecMeasureAngle_fixed = #()
+		AlecMeasureAngle_cursor = undefined
+		AlecMeasureAngle_overlay = AlecTools_Overlay()
+		AlecTools_beginOverlayTool AlecMeasureAngle_draw AlecMeasureAngle_toggleFlat
 	)
 	on freeMove do track()
 	on mouseMove clickno do track()
 	-- the first click comes twice, on press (1) and on release (2): the release is skipped
 	on mousePoint clickno do if clickno != 2 do
 	(
-		if AlecAngle_fixed.count == 4 do AlecAngle_fixed = #()
-		append AlecAngle_fixed worldPoint
-		AlecAngle_cursor = worldPoint
-		AlecAngle_show()
+		if AlecMeasureAngle_fixed.count == 4 do AlecMeasureAngle_fixed = #()
+		append AlecMeasureAngle_fixed worldPoint
+		AlecMeasureAngle_cursor = worldPoint
+		AlecMeasureAngle_show()
 	)
 	on stop do
 	(
-		AlecAngle_overlay = undefined
+		AlecMeasureAngle_overlay = undefined
 		AlecTools_endOverlayTool()
 	)
 )
 
 -- the plain button: 3D, Ctrl = World XY; the caddy passes its own plane, already on
-fn AlecAngle_run normal:[0, 0, 1] name:"World XY" flat:false =
+fn AlecMeasureAngle_pick = startTool AlecMeasureAngle_tool snap:#3D prompt:(AlecMeasureAngle_prompt())
+
+fn AlecMeasureAngle_start normal:[0, 0, 1] name:"World XY" flat:false =
 (
-	AlecAngle_normal = normal
-	AlecAngle_planeName = name
-	AlecAngle_flat = flat
-	local snapWasOn = snapMode.active
-	snapMode.active = true
-	startTool AlecAngle_tool snap:#3D prompt:("Measure Angle: click point 1 of 4" + AlecAngle_promptTail())
-	snapMode.active = snapWasOn
+	AlecMeasureAngle_normal = normal
+	AlecMeasureAngle_planeName = name
+	AlecMeasureAngle_flat = flat
+	AlecMeasureAngle_fixed = #()
+	AlecTools_withSnaps AlecMeasureAngle_pick
 )
+
+-- the macro's entry: the caddy (Shift or a toolbar right click) or the plain command
+fn AlecMeasureAngle_run showCaddy:false =
+	if showCaddy then AlecTools_runPython "measureAngleCaddy.py" else AlecMeasureAngle_start()

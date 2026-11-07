@@ -64,6 +64,9 @@ fn AlecTools_average points =
 	sum / points.count
 )
 
+-- the middle of a #(min, max) pair
+fn AlecTools_boundsCenter b = (b[1] + b[2]) / 2
+
 -- #(min, max) of all the nodes, expressed in frame
 fn AlecTools_bounds nodes frame =
 (
@@ -72,11 +75,25 @@ fn AlecTools_bounds nodes frame =
 	AlecTools_pointsBounds corners
 )
 
+-- a prim of a USD stage: its controller has no pos or scale to set (docs/max-verified.md)
+fn AlecTools_isUsdPrim node = classOf node.controller == USDXformableController
+
+-- true when an ancestor of node (its parent, or a parent further up) is in nodes
+fn AlecTools_hasAncestorIn node nodes =
+(
+	local p = node.parent
+	while p != undefined and findItem nodes p == 0 do p = p.parent
+	p != undefined
+)
+
+-- the nodes that move on their own: a node with an ancestor in nodes follows it
+fn AlecTools_topLevel nodes = for n in nodes where not (AlecTools_hasAncestorIn n nodes) collect n
+
 -- where Max's Use Center turns or scales these nodes about: the center of their bounds (Selection Center), the world origin
 -- (Transform Coordinate Center), or undefined for each node's own pivot (Pivot Point Center)
 fn AlecTools_useCenter nodes = case getCoordCenter() of
 (
-	#selection: (local b = AlecTools_bounds nodes (matrix3 1); (b[1] + b[2]) / 2)
+	#selection: AlecTools_boundsCenter (AlecTools_bounds nodes (matrix3 1))
 	#system: [0, 0, 0]
 	default: undefined
 )

@@ -25,11 +25,25 @@ fn AlecMeasure_area points =
 	(length sum) / 2
 )
 
--- an area in square meters, written with 2 decimals
+-- the metric display unit of the scene as #(suffix, size in system units); meters when the display is not metric
+fn AlecMeasure_areaUnit =
+(
+	local name = if units.DisplayType == #Metric then units.MetricType else #Meters
+	local suffix = case name of
+	(
+		#Millimeters: "mm"
+		#Centimeters: "cm"
+		#Kilometers: "km"
+		default: "m"
+	)
+	#(suffix, units.decodeValue ("1" + suffix))
+)
+
+-- an area in the square of the display unit (m2 when the display is not metric), written with 2 decimals
 fn AlecMeasure_formatArea a =
 (
-	local m = units.decodeValue "1m"
-	(formattedPrint (a / (m * m)) format:".2f") + " m2"
+	local u = AlecMeasure_areaUnit()
+	(formattedPrint (a / (u[2] * u[2])) format:".2f") + " " + u[1] + "2"
 )
 
 -- the overlay of the points: a line and its length per segment, and the total next to the last point when there are 2 segments or more;
@@ -57,16 +71,16 @@ fn AlecMeasure_buildOverlay points area:false =
 
 fn AlecMeasure_prompt points area =
 (
-	local text = "Measure: click point " + (points.count as string)
+	local text = "Measure: " + (if points.count == 0 then "click the first point" else "click point " + (points.count as string))
 	if area then
 	(
 		if points.count > 2 do
-			text += " | area " + AlecMeasure_formatArea (AlecMeasure_area points) + ", perimeter " + units.formatValue (AlecMeasure_total points closed:true)
+			text += ", area " + AlecMeasure_formatArea (AlecMeasure_area points) + ", perimeter " + units.formatValue (AlecMeasure_total points closed:true)
 	)
 	else if points.count > 1 do
-		text += " | last " + units.formatValue (distance points[points.count - 1] points[points.count]) + \
+		text += ", last " + units.formatValue (distance points[points.count - 1] points[points.count]) + \
 			", total " + units.formatValue (AlecMeasure_total points)
-	text + " | " + (if area then "Area" else "Distance") + ", Ctrl = Distance/Area, right click or Esc = end"
+	text + " | " + (if area then "Area" else "Distance") + ", Ctrl = Distance/Area | right click or Esc = end and clear"
 )
 
 -- state of the running command, global so the Ctrl watcher (lib/ctrlKey.ms) can redraw it too: the clicked points, the cursor, area mode
@@ -76,15 +90,20 @@ global AlecMeasure_areaMode = false
 
 fn AlecMeasure_show =
 (
-	local points = if AlecMeasure_cursor == undefined then copy AlecMeasure_fixed else AlecMeasure_fixed + #(AlecMeasure_cursor)
+	-- a new array, not copy: copy of an empty array gives OK
+	local points = AlecMeasure_fixed + (if AlecMeasure_cursor == undefined then #() else #(AlecMeasure_cursor))
 	AlecMeasure_overlay = AlecMeasure_buildOverlay points area:AlecMeasure_areaMode
 	replacePrompt (AlecMeasure_prompt points AlecMeasure_areaMode)
 	redrawViews()
 )
 
+-- the mode of the scene (Distance unless Ctrl chose Area before), taken when the command starts
+fn AlecMeasure_recall = AlecMeasure_areaMode = AlecTools_recallSettings "Measure" false
+
 fn AlecMeasure_toggleArea =
 (
 	AlecMeasure_areaMode = not AlecMeasure_areaMode
+	AlecTools_rememberSettings "Measure" AlecMeasure_areaMode
 	AlecMeasure_show()
 )
 
@@ -104,16 +123,17 @@ tool AlecMeasure_tool
 		AlecMeasure_cursor = worldPoint
 		AlecMeasure_show()
 	)
-	on freeMove do if AlecMeasure_fixed.count > 0 do
+	fn track =
 	(
-		AlecMeasure_cursor = worldPoint
-		AlecMeasure_show()
+		AlecTools_ctrlSeen()
+		if AlecMeasure_fixed.count > 0 do
+		(
+			AlecMeasure_cursor = worldPoint
+			AlecMeasure_show()
+		)
 	)
-	on mouseMove clickno do if AlecMeasure_fixed.count > 0 do
-	(
-		AlecMeasure_cursor = worldPoint
-		AlecMeasure_show()
-	)
+	on freeMove do track()
+	on mouseMove clickno do track()
 	on stop do
 	(
 		AlecMeasure_overlay = undefined
@@ -121,10 +141,10 @@ tool AlecMeasure_tool
 	)
 )
 
+fn AlecMeasure_pick = startTool AlecMeasure_tool snap:#3D prompt:(AlecMeasure_prompt #() AlecMeasure_areaMode)
+
 fn AlecMeasure_run =
 (
-	local snapWasOn = snapMode.active
-	snapMode.active = true
-	startTool AlecMeasure_tool snap:#3D prompt:"Measure: click the first point | Ctrl = Distance/Area, right click or Esc = end"
-	snapMode.active = snapWasOn
+	AlecMeasure_recall()
+	AlecTools_withSnaps AlecMeasure_pick
 )

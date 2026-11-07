@@ -1,14 +1,11 @@
-"""Creates the Alec Tools toolbar (AlecTools_load, at every start and reload); the code is in AlecToolbar.py."""
+"""Creates the Alec Tools toolbar (AlecTools_load, at every start and reload); the code is in AlecToolbar.py. The editor module is
+reloaded here too, so a Reload picks up its changes before anything imports it."""
 
 import importlib
-import sys
 
-from pymxs import runtime as rt
-
-TOOLS = rt.AlecTools_path("tools")
-if TOOLS not in sys.path:
-    sys.path.append(TOOLS)
 import AlecToolbar
+import AlecToolbarEditor
 
 importlib.reload(AlecToolbar)
+importlib.reload(AlecToolbarEditor)
 AlecToolbar.create()

@@ -64,11 +64,12 @@ fn AlecCreate_addNode view item nodes = AlecCreate_placeNode view item (AlecCrea
 fn AlecCreate_assign item =
 (
 	local targets = for o in selection where isProperty o #material collect o
-	if targets.count == 0 then displayTempPrompt "Create: select the objects to give the material to" 3000
+	if targets.count == 0 then displayTempPrompt "Create: select something first" 3000
 	else
 	(
-		undo "Create material" on for o in targets do o.material = item
+		undo "Create Material" on for o in targets do o.material = item
 		completeRedraw()
+		displayTempPrompt ("Create: " + classOf item as string + " assigned") 3000
 	)
 )
 
@@ -145,13 +146,14 @@ fn AlecCreate_canSwap = (AlecCreate_swappable()).count > 0
 fn AlecCreate_swapInputs =
 (
 	local items = AlecCreate_swappable()
-	undo "Swap inputs" on for item in items do
+	undo "Swap Inputs" on for item in items do
 	(
 		local slots = AlecCreate_slotsOf item
 		local held = getProperty item slots[1]
 		setProperty item slots[1] (getProperty item slots[2])
 		setProperty item slots[2] held
 	)
+	displayTempPrompt "Create: inputs swapped" 3000
 )
 
 -- what goes into a slot to connect this map: a map with several outputs (Uber Bitmap has 7) through a node for its first output, the way
@@ -390,7 +392,8 @@ fn AlecCreate_replacePlaceholder before kind className =
 		else
 		(
 			AlecCreate_emptySlots item className
-			undo "Create node" on AlecCreate_placeNode view item spot
+			undo "Create Node" on AlecCreate_placeNode view item spot
+			displayTempPrompt ("Create: " + className + " made") 3000
 		)
 		true
 	)
@@ -547,7 +550,7 @@ fn AlecCreate_collapseMaps view maps =
 fn AlecCreate_fillSelected view target files =
 (
 	local made
-	undo "Fill material" on
+	undo "Fill Material" on
 	(
 		made = AlecCreate_fillFromFiles target (classOf target as string) files
 		local pos = AlecCreate_leftOf view target
@@ -564,7 +567,7 @@ fn AlecCreate_placeFromFiles view className files spot =
 (
 	local made = AlecCreate_materialFromFiles className files
 	local pos = if spot == undefined then AlecCreate_nodePosition view (view.GetSelectedNodes()) else spot
-	undo "Create material" on
+	undo "Create Material" on
 	(
 		for i = 1 to made[2].count do view.CreateNode made[2][i] (pos + [0, 200 * i])
 		AlecCreate_placeNode view made[1] pos
@@ -589,8 +592,9 @@ fn AlecCreate_fromFiles className files inSme spot =
 		made = AlecCreate_materialFromFiles className files
 		AlecCreate_assign made[1]
 	)
-	if made[2].count > 0 do
+	if made[2].count > 0 then
 		displayTempPrompt ("Create: not connected: " + (made[2].count as string) + " of " + (files.count as string) + " files, no free slot or the name did not say where (see the Listener)") 4000
+	else displayTempPrompt ("Create: " + (files.count as string) + " files connected") 3000
 	for m in made[2] do format "Create: not connected: %\n" m.name
 )
 
@@ -600,7 +604,7 @@ fn AlecCreate_addBitmaps className files spot =
 (
 	local view = AlecCreate_activeView()
 	local items = for file in files collect AlecCreate_loadBitmap className file (AlecCreate_textureRole file)
-	undo "Create node" on
+	undo "Create Node" on
 	(
 		if spot == undefined then AlecCreate_addToSme items[1] className else AlecCreate_placeNode view items[1] spot
 		local first = view.GetNodeByRef items[1]
@@ -608,6 +612,7 @@ fn AlecCreate_addBitmaps className files spot =
 		for i = 2 to items.count do AlecCreate_collapse (view.CreateNode items[i] (pos + [0, 200 * (i - 1)])) items[i]
 		view.SetSelectedNodes items
 	)
+	displayTempPrompt ("Create: " + (items.count as string) + " bitmaps made") 3000
 )
 
 -- the top selected node's unused slots, hidden or shown
@@ -620,6 +625,10 @@ fn AlecCreate_add kind className inSme =
 (
 	local item = AlecCreate_make kind className
 	if item == undefined then displayTempPrompt ("Create: " + className + " is not installed") 3000
-	else if inSme then undo "Create node" on AlecCreate_addToSme item className
+	else if inSme then
+	(
+		undo "Create Node" on AlecCreate_addToSme item className
+		displayTempPrompt ("Create: " + className + " made") 3000
+	)
 	else if kind == "material" do AlecCreate_assign item
 )

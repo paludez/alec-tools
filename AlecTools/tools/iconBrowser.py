@@ -11,6 +11,8 @@ from pymxs import runtime as rt
 from PySide6 import QtCore, QtGui, QtWidgets
 from qtmax import GetQMaxMainWindow
 
+import AlecTools_caddy
+
 IMAGE_EXT = (".png", ".svg", ".bmp", ".ico")
 
 
@@ -79,7 +81,8 @@ def folder_icons(folder):
     return icons
 
 
-class IconBrowser(QtWidgets.QDialog):
+# Esc does nothing on it (it crashed Max): the close button closes it
+class IconBrowser(AlecTools_caddy.NoEscape, QtWidgets.QDialog):
     def __init__(self, parent):
         super().__init__(parent)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
@@ -139,4 +142,13 @@ class IconBrowser(QtWidgets.QDialog):
         print(reference)
 
 
-IconBrowser(GetQMaxMainWindow()).show()
+# the macro pressed again closes it
+def toggle():
+    open_ones = [w for w in GetQMaxMainWindow().findChildren(QtWidgets.QDialog) if type(w).__name__ == "IconBrowser" and w.isVisible()]
+    for browser in open_ones:
+        browser.close()
+    if not open_ones:
+        IconBrowser(GetQMaxMainWindow()).show()
+
+
+toggle()

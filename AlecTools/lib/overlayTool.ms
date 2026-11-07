@@ -1,4 +1,5 @@
--- Start and end of a viewport tool (Measure*, Measure Angle): its drawing callback and its Ctrl watcher (lib/ctrlKey.ms).
+-- Start and end of a viewport tool (Measure*, Measure Angle): its drawing callback and its Ctrl watcher (lib/ctrlKey.ms; a tool with a
+-- Ctrl switch calls AlecTools_ctrlSeen() first thing in its freeMove and mouseMove).
 -- One tool runs at a time; the running one's callback is kept here, so AlecTools_load can end it before the purge orphans it.
 
 global AlecTools_toolDraw = undefined

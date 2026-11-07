@@ -3,5 +3,6 @@ dist/
 !/AlecTools.mzp
 *.bak
 __pycache__/
-tests/converter_props.txt
-tests/converter_props2.txt
+tests/checks/converter_props.txt
+tests/checks/converter_props2.txt
+AlecTools/MaxSettings/AlecSettings-backup-*.zip

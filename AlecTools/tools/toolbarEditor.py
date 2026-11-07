@@ -1,14 +1,8 @@
-"""Opens the toolbar editor (Edit Toolbar macro); the code is in AlecToolbar.py."""
+"""Opens the toolbar editor (Edit Toolbar macro); the code is in AlecToolbarEditor.py."""
 
 import importlib
-import sys
 
-from pymxs import runtime as rt
+import AlecToolbarEditor
 
-TOOLS = rt.AlecTools_path("tools")
-if TOOLS not in sys.path:
-    sys.path.append(TOOLS)
-import AlecToolbar
-
-importlib.reload(AlecToolbar)
-AlecToolbar.open_editor()
+importlib.reload(AlecToolbarEditor)
+AlecToolbarEditor.open_editor()

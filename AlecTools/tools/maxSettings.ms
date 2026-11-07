@@ -12,14 +12,14 @@
 -- no path of that PC, and staging swaps the token for this PC's user folder.
 
 -- workspace: the active workspace's path without extension (Workspaces\usersave\Workspace1__usersave__), undefined when there is none
-struct AlecSettings_dirsStruct (settingsDir, uiDir, workspace, backupDir, pendingDir)
+struct AlecMaxSettings_dirsStruct (settingsDir, uiDir, workspace, backupDir, pendingDir)
 
-global AlecSettings_userToken = "{USERPROFILE}"
+global AlecMaxSettings_userToken = "{USERPROFILE}"
 
-fn AlecSettings_userProfile = (dotNetClass "System.Environment").GetEnvironmentVariable "USERPROFILE"
+fn AlecMaxSettings_userProfile = (dotNetClass "System.Environment").GetEnvironmentVariable "USERPROFILE"
 
 -- the active workspace: the newest .workspace under Workspaces, as its path without the extension
-fn AlecSettings_activeWorkspace uiDir =
+fn AlecMaxSettings_activeWorkspace uiDir =
 (
 	local dirIO = dotNetClass "System.IO.Directory"
 	local fileIO = dotNetClass "System.IO.File"
@@ -35,25 +35,25 @@ fn AlecSettings_activeWorkspace uiDir =
 )
 
 -- where this Max keeps its customizations; the language folder (ENU) is the one the user scripts folder is in
-fn AlecSettings_defaultDirs =
+fn AlecMaxSettings_defaultDirs =
 (
 	local enu = (dotNetClass "System.IO.Path").GetFullPath ((getDir #userScripts) + "/..")
 	local ui = enu + "\\en-US\\UI"
-	AlecSettings_dirsStruct \
-		settingsDir:((AlecSettings_userProfile()) + "\\Autodesk\\3ds Max 2027\\User Settings") \
+	AlecMaxSettings_dirsStruct \
+		settingsDir:((AlecMaxSettings_userProfile()) + "\\Autodesk\\3ds Max 2027\\User Settings") \
 		uiDir:ui \
-		workspace:(AlecSettings_activeWorkspace ui) \
+		workspace:(AlecMaxSettings_activeWorkspace ui) \
 		backupDir:(enu + "\\AlecSettings.backup") \
 		pendingDir:(enu + "\\AlecSettings.pending")
 )
 
-fn AlecSettings_copyFileTo src dst =
+fn AlecMaxSettings_copyFileTo src dst =
 (
 	(dotNetClass "System.IO.Directory").CreateDirectory (getFilenamePath dst)
 	(dotNetClass "System.IO.File").Copy src dst true
 )
 
-fn AlecSettings_emptyDir path =
+fn AlecMaxSettings_emptyDir path =
 (
 	local dirIO = dotNetClass "System.IO.Directory"
 	if dirIO.Exists path do dirIO.Delete path true
@@ -61,23 +61,23 @@ fn AlecSettings_emptyDir path =
 )
 
 -- copies a folder with everything in it
-fn AlecSettings_copyTree srcDir dstDir =
+fn AlecMaxSettings_copyTree srcDir dstDir =
 (
 	local dirIO = dotNetClass "System.IO.Directory"
 	dirIO.CreateDirectory dstDir
-	for f in (dirIO.GetFiles srcDir) do AlecSettings_copyFileTo f (dstDir + "\\" + (filenameFromPath f))
+	for f in (dirIO.GetFiles srcDir) do AlecMaxSettings_copyFileTo f (dstDir + "\\" + (filenameFromPath f))
 	for d in (dirIO.GetDirectories srcDir) do
-		AlecSettings_copyTree d (dstDir + "\\" + (filenameFromPath d))
+		AlecMaxSettings_copyTree d (dstDir + "\\" + (filenameFromPath d))
 )
 
 -- copies the shortcuts, toolbars and menus of this PC into root/UserSettings and root/UI; returns how many files
-fn AlecSettings_collect root dirs =
+fn AlecMaxSettings_collect root dirs =
 (
 	local n = 0
 	for pattern in #("*.hsx", "*.qmnx", "*.mnx") do
 		for f in (getFiles (dirs.settingsDir + "\\" + pattern)) do
 		(
-			AlecSettings_copyFileTo f (root + "\\UserSettings\\" + (filenameFromPath f))
+			AlecMaxSettings_copyFileTo f (root + "\\UserSettings\\" + (filenameFromPath f))
 			n += 1
 		)
 	local ui = root + "\\UI\\"
@@ -92,12 +92,12 @@ fn AlecSettings_collect root dirs =
 			#(dirs.workspace + ".mnxpath", ui + "Menus.mnxpath")
 		)
 	for p in pairs do
-		if doesFileExist p[1] do (AlecSettings_copyFileTo p[1] p[2]; n += 1)
+		if doesFileExist p[1] do (AlecMaxSettings_copyFileTo p[1] p[2]; n += 1)
 	n
 )
 
 -- rewrites the text of every file in root named pattern with fixFn
-fn AlecSettings_rewriteFiles root pattern fixFn =
+fn AlecMaxSettings_rewriteFiles root pattern fixFn =
 (
 	local fileIO = dotNetClass "System.IO.File"
 	local utf8Bom = dotNetObject "System.Text.UTF8Encoding" true
@@ -110,18 +110,18 @@ fn AlecSettings_rewriteFiles root pattern fixFn =
 	)
 )
 
-fn AlecSettings_neutral text =
+fn AlecMaxSettings_neutral text =
 (
-	(dotNetClass "System.Text.RegularExpressions.Regex").Replace text "(?i)[A-Z]:[/\\\\]Users[/\\\\][^/\\\\\r\n\"<>]+" AlecSettings_userToken
+	(dotNetClass "System.Text.RegularExpressions.Regex").Replace text "(?i)[A-Z]:[/\\\\]Users[/\\\\][^/\\\\\r\n\"<>]+" AlecMaxSettings_userToken
 )
 
-fn AlecSettings_local text =
+fn AlecMaxSettings_local text =
 (
-	substituteString text AlecSettings_userToken (substituteString (AlecSettings_userProfile()) "\\" "/")
+	substituteString text AlecMaxSettings_userToken (substituteString (AlecMaxSettings_userProfile()) "\\" "/")
 )
 
 -- the .NET zip class; the assembly is named differently in older .NET
-fn AlecSettings_zipClass =
+fn AlecMaxSettings_zipClass =
 (
 	try (dotnet.loadAssembly "System.IO.Compression.ZipFile")
 	catch (dotnet.loadAssembly "System.IO.Compression.FileSystem")
@@ -129,40 +129,40 @@ fn AlecSettings_zipClass =
 )
 
 -- returns how many files went into <target>\AlecSettings.zip
-fn AlecSettings_exportTo target dirs =
+fn AlecMaxSettings_exportTo target dirs =
 (
 	local root = (getDir #temp) + "\\AlecSettingsPack"
-	AlecSettings_emptyDir root
-	local n = AlecSettings_collect root dirs
-	AlecSettings_rewriteFiles root "*.mnxpath" AlecSettings_neutral
+	AlecMaxSettings_emptyDir root
+	local n = AlecMaxSettings_collect root dirs
+	AlecMaxSettings_rewriteFiles root "*.mnxpath" AlecMaxSettings_neutral
 	if n == 0 do throw ("Nothing to export: no shortcuts, toolbars or menus found in " + dirs.settingsDir + " and " + dirs.uiDir)
 	local zipFile = target + "\\AlecSettings.zip"
 	(dotNetClass "System.IO.File").Delete zipFile
-	(AlecSettings_zipClass()).CreateFromDirectory root zipFile
+	(AlecMaxSettings_zipClass()).CreateFromDirectory root zipFile
 	(dotNetClass "System.IO.Directory").Delete root true
 	n
 )
 
 -- true for the folder inside an Export zip, and for a backup folder (the same layout)
-fn AlecSettings_isPack folder =
+fn AlecMaxSettings_isPack folder =
 (
 	local dirIO = dotNetClass "System.IO.Directory"
 	dirIO.Exists (folder + "\\UserSettings") and dirIO.Exists (folder + "\\UI")
 )
 
 -- unpacks an Export zip into the (emptied) folder and returns it
-fn AlecSettings_unzipTo zipFile folder =
+fn AlecMaxSettings_unzipTo zipFile folder =
 (
-	AlecSettings_emptyDir folder
-	(AlecSettings_zipClass()).ExtractToDirectory zipFile folder
-	if not (AlecSettings_isPack folder) do throw ("Not an Alec settings file: " + zipFile)
+	AlecMaxSettings_emptyDir folder
+	(AlecMaxSettings_zipClass()).ExtractToDirectory zipFile folder
+	if not (AlecMaxSettings_isPack folder) do throw ("Not an Alec settings file: " + zipFile)
 	folder
 )
 
 -- the pending folder is a staging copy of the pack with this user's folder in the paths; copies it over the real files.
 -- The workspace files go to the workspace this Max has; with none, only the shortcuts, menus and MaxStartUI are replaced.
 -- Max is not touched: it keeps what it has until it is restarted
-fn AlecSettings_apply dirs =
+fn AlecMaxSettings_apply dirs =
 (
 	local pending = dirs.pendingDir
 	local pairs = #(
@@ -179,47 +179,47 @@ fn AlecSettings_apply dirs =
 		)
 	local n = 0
 	for p in pairs do
-		if doesFileExist p[1] do (AlecSettings_copyFileTo p[1] p[2]; n += 1)
+		if doesFileExist p[1] do (AlecMaxSettings_copyFileTo p[1] p[2]; n += 1)
 	n
 )
 
 -- the Preferences option that makes Max rewrite its UI files when it closes: "1" when on
-fn AlecSettings_saveUiOnExit = getINISetting (getMAXIniFile()) "WindowState" "SaveUIonExit"
+fn AlecMaxSettings_saveUiOnExit = getINISetting (getMAXIniFile()) "WindowState" "SaveUIonExit"
 
 -- the backups are AlecSettings-backup-<date and time>.zip, in the folder of the zip that was imported; the newest few are kept
-global AlecSettings_backupsKept = 3
+global AlecMaxSettings_backupsKept = 3
 
 -- the backups in the folder, oldest first (the names are date and time)
-fn AlecSettings_backupsIn folder =
+fn AlecMaxSettings_backupsIn folder =
 (
 	local found = for f in ((dotNetClass "System.IO.Directory").GetFiles folder "AlecSettings-backup-*.zip") collect f
 	sort found
 )
 
--- zips what this PC has into dirs.backupDir; the oldest backups beyond AlecSettings_backupsKept are deleted; returns the zip
-fn AlecSettings_backup dirs =
+-- zips what this PC has into dirs.backupDir; the oldest backups beyond AlecMaxSettings_backupsKept are deleted; returns the zip
+fn AlecMaxSettings_backup dirs =
 (
 	local stamp = (dotNetClass "System.DateTime").Now.ToString "yyyyMMdd-HHmmss-fff"
 	local tmp = (getDir #temp) + "\\AlecSettingsBackup"
-	AlecSettings_emptyDir tmp
-	AlecSettings_collect tmp dirs
+	AlecMaxSettings_emptyDir tmp
+	AlecMaxSettings_collect tmp dirs
 	(dotNetClass "System.IO.Directory").CreateDirectory dirs.backupDir
 	local zipFile = dirs.backupDir + "\\AlecSettings-backup-" + stamp + ".zip"
-	(AlecSettings_zipClass()).CreateFromDirectory tmp zipFile
+	(AlecMaxSettings_zipClass()).CreateFromDirectory tmp zipFile
 	(dotNetClass "System.IO.Directory").Delete tmp true
-	local backups = AlecSettings_backupsIn dirs.backupDir
-	for i = 1 to backups.count - AlecSettings_backupsKept do (dotNetClass "System.IO.File").Delete backups[i]
+	local backups = AlecMaxSettings_backupsIn dirs.backupDir
+	for i = 1 to backups.count - AlecMaxSettings_backupsKept do (dotNetClass "System.IO.File").Delete backups[i]
 	zipFile
 )
 
--- backs up what this PC has (see AlecSettings_backup), replaces it with the folder's; returns #(files replaced, backup zip)
-fn AlecSettings_import root dirs =
+-- backs up what this PC has (see AlecMaxSettings_backup), replaces it with the folder's; returns #(files replaced, backup zip)
+fn AlecMaxSettings_import root dirs =
 (
-	local backup = AlecSettings_backup dirs
-	AlecSettings_emptyDir dirs.pendingDir
-	AlecSettings_copyTree root dirs.pendingDir
-	AlecSettings_rewriteFiles dirs.pendingDir "*.mnxpath" AlecSettings_local
-	local n = AlecSettings_apply dirs
+	local backup = AlecMaxSettings_backup dirs
+	AlecMaxSettings_emptyDir dirs.pendingDir
+	AlecMaxSettings_copyTree root dirs.pendingDir
+	AlecMaxSettings_rewriteFiles dirs.pendingDir "*.mnxpath" AlecMaxSettings_local
+	local n = AlecMaxSettings_apply dirs
 	(dotNetClass "System.IO.Directory").Delete dirs.pendingDir true
 	#(n, backup)
 )
@@ -228,23 +228,23 @@ fn AlecSettings_import root dirs =
 -- Each returns #(files replaced, backup folder) and throws a message when it cannot go on.
 
 -- imports an Export zip; this PC's files are backed up next to it
-fn AlecSettings_importZip zipFile dirs =
+fn AlecMaxSettings_importZip zipFile dirs =
 (
 	if not (doesFileExist zipFile) do throw ("File not found: " + zipFile)
 	dirs.backupDir = trimRight (getFilenamePath zipFile) "\\"
 	local unzipped = (getDir #temp) + "\\AlecSettingsUnzip"
-	local done = AlecSettings_import (AlecSettings_unzipTo zipFile unzipped) dirs
+	local done = AlecMaxSettings_import (AlecMaxSettings_unzipTo zipFile unzipped) dirs
 	(dotNetClass "System.IO.Directory").Delete unzipped true
 	done
 )
 
 -- the backup to restore: the zip itself, or the newest backup in the folder
-fn AlecSettings_backupToRestore path =
+fn AlecMaxSettings_backupToRestore path =
 (
 	local newest = undefined
 	if (dotNetClass "System.IO.Directory").Exists path then
 	(
-		local backups = AlecSettings_backupsIn path
+		local backups = AlecMaxSettings_backupsIn path
 		if backups.count > 0 do newest = backups[backups.count]
 	)
 	else if doesFileExist path do newest = path
@@ -252,13 +252,13 @@ fn AlecSettings_backupToRestore path =
 )
 
 -- puts a backup back; the state before is backed up beside it
-fn AlecSettings_restoreFrom path dirs =
+fn AlecMaxSettings_restoreFrom path dirs =
 (
-	local zipFile = AlecSettings_backupToRestore path
+	local zipFile = AlecMaxSettings_backupToRestore path
 	if zipFile == undefined do throw ("No backup found in " + path)
 	dirs.backupDir = trimRight (getFilenamePath zipFile) "\\"
 	local unzipped = (getDir #temp) + "\\AlecSettingsUnzip"
-	local done = AlecSettings_import (AlecSettings_unzipTo zipFile unzipped) dirs
+	local done = AlecMaxSettings_import (AlecMaxSettings_unzipTo zipFile unzipped) dirs
 	(dotNetClass "System.IO.Directory").Delete unzipped true
 	done
 )

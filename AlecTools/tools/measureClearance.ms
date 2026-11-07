@@ -3,28 +3,28 @@
 -- Ctrl turns the direction into the surface instead: the thickness of a wall or a slab.
 -- Only visible geometry the ray hits counts (intersectRayScene). Right click or Esc ends the command and the viewports are cleared.
 
-global AlecClear_overlay = undefined
+global AlecMeasureClearance_overlay = undefined
 
-fn AlecClear_draw = if AlecClear_overlay != undefined do AlecTools_drawOverlay AlecClear_overlay
+fn AlecMeasureClearance_draw = if AlecMeasureClearance_overlay != undefined do AlecTools_drawOverlay AlecMeasureClearance_overlay
 
 -- the closest visible geometry hit by the ray, as AlecTools_rayHit gives it; the ray starts a hair off the surface so it does not hit the face it leaves
-fn AlecClear_firstHit pos dir = AlecTools_rayHit (ray (pos + dir * 0.01) dir)
+fn AlecMeasureClearance_firstHit pos dir = AlecTools_rayHit (ray (pos + dir * 0.01) dir)
 
 -- the measurement from a surface point along dir: #(start, end) with end undefined when nothing is in front
-fn AlecClear_measure pos dir =
+fn AlecMeasureClearance_measure pos dir =
 (
-	local hit = AlecClear_firstHit pos dir
+	local hit = AlecMeasureClearance_firstHit pos dir
 	#(pos, if hit == undefined then undefined else hit[2].pos)
 )
 
 -- how far back the inward ray starts: past the far side of the object; from 100000 away intersectRayScene hits nothing at all
-fn AlecClear_far node = (distance node.min node.max) + 1.0
+fn AlecMeasureClearance_far node = (distance node.min node.max) + 1.0
 
 -- the measurement from a surface point into its object: back faces are not hit, so the ray comes back from past the object along dir
 -- and the last surface before the point is where the object ends
-fn AlecClear_measureInward pos dir node =
+fn AlecMeasureClearance_measureInward pos dir node =
 (
-	local far = AlecClear_far node
+	local far = AlecMeasureClearance_far node
 	local r = ray (pos + dir * far) -dir
 	local best = undefined
 	local bestDist = -1.0
@@ -41,16 +41,16 @@ fn AlecClear_measureInward pos dir node =
 )
 
 -- the measurement under a screen point: the surface hit there, then along its normal (or against it when inward)
-fn AlecClear_measureAt screenPoint inward =
+fn AlecMeasureClearance_measureAt screenPoint inward =
 (
 	local hit = AlecTools_surfaceAt screenPoint
 	if hit == undefined then undefined
-	else if inward then AlecClear_measureInward hit[2].pos -hit[2].dir hit[1]
-	else AlecClear_measure hit[2].pos hit[2].dir
+	else if inward then AlecMeasureClearance_measureInward hit[2].pos -hit[2].dir hit[1]
+	else AlecMeasureClearance_measure hit[2].pos hit[2].dir
 )
 
 -- a line and its length per measurement; one with nothing in front gets a short stub and "no hit"
-fn AlecClear_buildOverlay measures =
+fn AlecMeasureClearance_buildOverlay measures =
 (
 	local ov = AlecTools_Overlay()
 	for m in measures where m != undefined do
@@ -65,9 +65,9 @@ fn AlecClear_buildOverlay measures =
 	ov
 )
 
-fn AlecClear_prompt m inward =
+fn AlecMeasureClearance_prompt m inward =
 (
-	local tail = " | " + (if inward then "Inward" else "Outward") + ", Ctrl = Outward/Inward, click = keep, right click or Esc = end"
+	local tail = " | " + (if inward then "Inward" else "Outward") + ", Ctrl = Outward/Inward | click = keep | right click or Esc = end and clear"
 	if m == undefined then "Measure Clearance: move over a surface" + tail
 	else if m[2] == undefined then "Measure Clearance: nothing in front" + tail
 	else "Measure Clearance: " + units.formatValue (distance m[1] m[2]) + tail
@@ -75,60 +75,66 @@ fn AlecClear_prompt m inward =
 
 -- state of the running command, global so the Ctrl watcher (lib/ctrlKey.ms) can redraw it too:
 -- the kept measurements, the screen point under the mouse and its measurement, the direction
-global AlecClear_kept = #()
-global AlecClear_screen = undefined
-global AlecClear_current = undefined
-global AlecClear_inward = false
+global AlecMeasureClearance_kept = #()
+global AlecMeasureClearance_screen = undefined
+global AlecMeasureClearance_current = undefined
+global AlecMeasureClearance_inward = false
 
-fn AlecClear_show =
+fn AlecMeasureClearance_show =
 (
-	AlecClear_current = if AlecClear_screen == undefined then undefined else AlecClear_measureAt AlecClear_screen AlecClear_inward
-	AlecClear_overlay = AlecClear_buildOverlay (AlecClear_kept + #(AlecClear_current))
-	replacePrompt (AlecClear_prompt AlecClear_current AlecClear_inward)
+	AlecMeasureClearance_current = if AlecMeasureClearance_screen == undefined then undefined else AlecMeasureClearance_measureAt AlecMeasureClearance_screen AlecMeasureClearance_inward
+	AlecMeasureClearance_overlay = AlecMeasureClearance_buildOverlay (AlecMeasureClearance_kept + #(AlecMeasureClearance_current))
+	replacePrompt (AlecMeasureClearance_prompt AlecMeasureClearance_current AlecMeasureClearance_inward)
 	redrawViews()
 )
 
-fn AlecClear_toggleInward =
+-- the direction of the scene (Outward unless Ctrl chose Inward before), taken when the command starts
+fn AlecMeasureClearance_recall = AlecMeasureClearance_inward = AlecTools_recallSettings "MeasureClearance" false
+
+fn AlecMeasureClearance_toggleInward =
 (
-	AlecClear_inward = not AlecClear_inward
-	AlecClear_show()
+	AlecMeasureClearance_inward = not AlecMeasureClearance_inward
+	AlecTools_rememberSettings "MeasureClearance" AlecMeasureClearance_inward
+	AlecMeasureClearance_show()
 )
 
-tool AlecClear_tool
+tool AlecMeasureClearance_tool
 (
 	on start do
 	(
-		AlecClear_kept = #()
-		AlecClear_screen = undefined
-		AlecClear_current = undefined
-		AlecClear_overlay = AlecTools_Overlay()
-		AlecTools_beginOverlayTool AlecClear_draw AlecClear_toggleInward
+		AlecMeasureClearance_kept = #()
+		AlecMeasureClearance_screen = undefined
+		AlecMeasureClearance_current = undefined
+		AlecMeasureClearance_overlay = AlecTools_Overlay()
+		AlecTools_beginOverlayTool AlecMeasureClearance_draw AlecMeasureClearance_toggleInward
 	)
-	on freeMove do if AlecTools_hoverMoved viewPoint do
+	fn track =
 	(
-		AlecClear_screen = viewPoint
-		AlecClear_show()
+		AlecTools_ctrlSeen()
+		if AlecTools_hoverMoved viewPoint do
+		(
+			AlecMeasureClearance_screen = viewPoint
+			AlecMeasureClearance_show()
+		)
 	)
-	on mouseMove clickno do if AlecTools_hoverMoved viewPoint do
-	(
-		AlecClear_screen = viewPoint
-		AlecClear_show()
-	)
+	on freeMove do track()
+	on mouseMove clickno do track()
 	-- the first click comes twice, on press (1) and on release (2): the release is skipped
 	on mousePoint clickno do if clickno != 2 do
 	(
-		AlecClear_screen = viewPoint
-		AlecClear_show()
-		if AlecClear_current != undefined and AlecClear_current[2] != undefined do append AlecClear_kept AlecClear_current
+		AlecMeasureClearance_screen = viewPoint
+		AlecMeasureClearance_show()
+		if AlecMeasureClearance_current != undefined and AlecMeasureClearance_current[2] != undefined do append AlecMeasureClearance_kept AlecMeasureClearance_current
 	)
 	on stop do
 	(
-		AlecClear_overlay = undefined
+		AlecMeasureClearance_overlay = undefined
 		AlecTools_endOverlayTool()
 	)
 )
 
-fn AlecClear_run =
+fn AlecMeasureClearance_run =
 (
-	startTool AlecClear_tool prompt:(AlecClear_prompt undefined AlecClear_inward)
+	AlecMeasureClearance_recall()
+	startTool AlecMeasureClearance_tool prompt:(AlecMeasureClearance_prompt undefined AlecMeasureClearance_inward)
 )

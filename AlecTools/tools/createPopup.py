@@ -8,23 +8,15 @@ Mix or CompTex. A click anywhere else or the macro run again closes it.
 """
 
 import importlib
-import sys
 
 import pymxs
 from pymxs import runtime as rt
 from PySide6 import QtCore, QtGui, QtWidgets
 from qtmax import GetQMaxMainWindow
 
-TOOLS = rt.AlecTools_path("tools")
-if TOOLS not in sys.path:
-    sys.path.append(TOOLS)
-LIB = rt.AlecTools_path("lib")
-if LIB not in sys.path:
-    sys.path.append(LIB)
 import AlecTools_caddy
 import smeCursor
 
-importlib.reload(AlecTools_caddy)
 importlib.reload(smeCursor)
 
 SECTION = "Create Popup"
@@ -53,11 +45,24 @@ UBER = "osl_UberBitmap2b"
 BITMAPS = ("VRayBitmap", UBER)
 BITMAP_TIP = "Pick textures: a node for each file"
 # a button that takes the selected nodes
-STYLE = "QPushButton#composes { color: #f0c040; }"
-HELP = ("Over Slate: a node at the mouse\n"
-        "Over a viewport: a material on the selection\n"
-        "Yellow: goes next to the selected nodes\n"
-        "A click elsewhere or the shortcut closes")
+STYLE = "QPushButton#composes {{ color: {result}; }}".format(**AlecTools_caddy.COLORS)
+HELP = "\n".join([
+    "Opened over the Slate Material Editor: a button makes its node where the mouse was",
+    "    (next to the selected nodes when that spot cannot be used).",
+    "Opened over a viewport: Materials and Misc assign a new material to the selected objects",
+    "    (the files buttons too).",
+    "Yellow buttons use what is selected in Slate: the selected maps or materials become",
+    "    the new node's inputs, or it goes into the selected material's empty slot;",
+    "    hover one for what it does.",
+    "Maps: only over Slate.",
+    "VRayBitmap, UberBitmap: pick files, a node for each file.",
+    "VRayMtl files, OpenPBR files: pick textures, a new material gets each one in the slot",
+    "    its file name says (albedo, roughness, normal, ...);",
+    "    yellow: they fill the empty slots of the selected material instead.",
+    "Swap order (Slate only): swaps the two inputs of the selected OSL Mix or CompTex.",
+    "Grey buttons: not installed, or not usable here; hover for why.",
+    "A click elsewhere, or the macro again: closes it.",
+])
 
 
 # true when the mouse is over the Slate Material Editor
@@ -95,7 +100,7 @@ def pick_folder():
     folders = AlecTools_caddy.map_folders()
     if len(folders) < 2:
         return folders[0] if folders else ""
-    menu = QtWidgets.QMenu(GetQMaxMainWindow())
+    menu = AlecTools_caddy.Menu(GetQMaxMainWindow())
     for folder in folders:
         menu.addAction(folder)
     chosen = menu.exec(QtGui.QCursor.pos())
@@ -122,7 +127,7 @@ class CreatePopup(AlecTools_caddy.Caddy):
         self.setStyleSheet(self.styleSheet() + STYLE)
         for title, kind, buttons, actions in GROUPS:
             heading = QtWidgets.QLabel(title)
-            heading.setObjectName("title")
+            heading.setObjectName("section")
             self.rows.addWidget(heading, self.rows.rowCount(), 0, 1, COLUMNS)
             row = self.rows.rowCount()
             widgets = [self.button(text, kind, class_name) for text, class_name in buttons] + [self.action(*a) for a in actions]
@@ -130,7 +135,10 @@ class CreatePopup(AlecTools_caddy.Caddy):
                 widgets += [self.file_button(text, class_name) for text, class_name in FILE_BUTTONS]
             for i, widget in enumerate(widgets):
                 self.rows.addWidget(widget, row + i // COLUMNS, i % COLUMNS)
-        self.add_help(HELP)
+        # the help icon at the right end of the first heading's row, which is empty past its short title
+        icon = self.help_icon(HELP)
+        if icon is not None:
+            self.rows.addWidget(icon, 0, COLUMNS - 1, QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
 
     # why a button cannot be used here, "" when it can
     def why_off(self, kind, class_name):
@@ -212,17 +220,13 @@ class CreatePopup(AlecTools_caddy.Caddy):
         if not in_sme or rt.AlecCreate_composes(class_name):
             rt.AlecCreate_add(kind, class_name, in_sme)
             return
-        rt.displayTempPrompt("Create: " + class_name + "...", 3000)
         before, placed = make_placeholder(cursor)
         if not (placed and rt.AlecCreate_replacePlaceholder(before, kind, class_name)):
-            rt.displayTempPrompt("Create: the mouse was not on an empty spot of the view, the node is next to the selection", 4000)
             rt.AlecCreate_add(kind, class_name, True)
+            rt.displayTempPrompt("Create: the mouse was not on an empty spot of the view, the node is next to the selection", 4000)
 
 
 def run():
-    if rt.AlecTools_caddyOpen == SECTION:
-        AlecTools_caddy.close_all()
-        return
     in_sme = over_sme()
     AlecTools_caddy.close_all()
     rt.fileIn(rt.AlecTools_path("tools/create.ms"))

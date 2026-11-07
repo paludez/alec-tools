@@ -4,9 +4,5 @@ toolTip:"Measure - click points with snaps, see each length and the total; right
 buttonText:"Measure"
 iconName:":/Icons/Extras/MeasureDistance_24.png"
 (
-	on execute do
-	(
-		fileIn (AlecTools_path "tools/measure.ms")
-		execute "AlecMeasure_run()"
-	)
+	on execute do AlecTools_runTool "measure.ms" "AlecMeasure_run()"
 )

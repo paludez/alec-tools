@@ -8,7 +8,7 @@
 -- where two surfaces meet (#(pos, normal) each): the line where their planes cross, and on it the foot of each clicked point;
 -- each foot-to-point arm lies in its face, square to that line, so the angle between the arms is the angle between the faces,
 -- the side each point was clicked on. Gives #(foot a, foot b, angle), or undefined when the planes are parallel or a point is on that line
-fn AlecAngle_surfaceCorner a b =
+fn AlecMeasureAngle_surfaceCorner a b =
 (
 	local d = cross a[2] b[2]
 	local dd = dot d d
@@ -19,13 +19,13 @@ fn AlecAngle_surfaceCorner a b =
 		local footA = p0 + d * ((dot (a[1] - p0) d) / dd)
 		local footB = p0 + d * ((dot (b[1] - p0) d) / dd)
 		if distance a[1] footA < 0.0001 or distance b[1] footB < 0.0001 then undefined
-		else #(footA, footB, AlecAngle_between (a[1] - footA) (b[1] - footB))
+		else #(footA, footB, AlecMeasureAngle_between (a[1] - footA) (b[1] - footB))
 	)
 )
 
 -- a face (#(pos, normal)) cut by the plane of the normal through p: the point moved onto that plane and the normal's part in it,
 -- or undefined when the face is parallel to the plane
-fn AlecAngle_cutFace face p normal =
+fn AlecMeasureAngle_cutFace face p normal =
 (
 	local n = normalize normal
 	local inPlane = face[2] - n * (dot face[2] n)
@@ -35,7 +35,7 @@ fn AlecAngle_cutFace face p normal =
 
 -- the overlay of 2 faces (#(pos, normal) each), cut by the plane of the normal when there is one: an arm from each point to where
 -- the faces meet, that meeting line between the two feet, and the angle written on it
-fn AlecAngle_facesOverlay faces normal =
+fn AlecMeasureAngle_facesOverlay faces normal =
 (
 	local ov = AlecTools_Overlay()
 	if faces.count == 2 do
@@ -44,17 +44,17 @@ fn AlecAngle_facesOverlay faces normal =
 		local b = faces[2]
 		if normal != undefined do
 		(
-			a = AlecAngle_cutFace a faces[1][1] normal
-			b = AlecAngle_cutFace b faces[1][1] normal
+			a = AlecMeasureAngle_cutFace a faces[1][1] normal
+			b = AlecMeasureAngle_cutFace b faces[1][1] normal
 		)
-		local c = if a == undefined or b == undefined then undefined else AlecAngle_surfaceCorner a b
+		local c = if a == undefined or b == undefined then undefined else AlecMeasureAngle_surfaceCorner a b
 		if c == undefined then append ov.labels #((faces[1][1] + faces[2][1]) / 2, "parallel")
 		else
 		(
 			append ov.lines #(a[1], c[1])
 			append ov.lines #(b[1], c[2])
 			if distance c[1] c[2] > 0.01 do append ov.lines #(c[1], c[2])
-			append ov.labels #((c[1] + c[2]) / 2, AlecAngle_format c[3])
+			append ov.labels #((c[1] + c[2]) / 2, AlecMeasureAngle_format c[3])
 		)
 	)
 	ov
@@ -62,33 +62,33 @@ fn AlecAngle_facesOverlay faces normal =
 
 -- the object under the mouse with its world mesh and a ray grid on it. The last 2 objects are kept, #(node, mesh, grid) each,
 -- most recent first, so moving between the 2 objects of a measure does not snapshot and grid them again
-global AlecAngle_pickCache = #()
-global AlecAngle_pickMesh = undefined
-global AlecAngle_pickGrid = undefined
+global AlecMeasureAngle_pickCache = #()
+global AlecMeasureAngle_pickMesh = undefined
+global AlecMeasureAngle_pickGrid = undefined
 
-fn AlecAngle_freeEntry e =
+fn AlecMeasureAngle_freeEntry e =
 (
 	e[3].free()
 	delete e[2]
 )
 
-fn AlecAngle_freePick =
+fn AlecMeasureAngle_freePick =
 (
-	for e in AlecAngle_pickCache do AlecAngle_freeEntry e
-	AlecAngle_pickCache = #()
-	AlecAngle_pickMesh = undefined
-	AlecAngle_pickGrid = undefined
+	for e in AlecMeasureAngle_pickCache do AlecMeasureAngle_freeEntry e
+	AlecMeasureAngle_pickCache = #()
+	AlecMeasureAngle_pickMesh = undefined
+	AlecMeasureAngle_pickGrid = undefined
 )
 
-fn AlecAngle_usePick node =
+fn AlecMeasureAngle_usePick node =
 (
 	local k = 0
-	for i = 1 to AlecAngle_pickCache.count where AlecAngle_pickCache[i][1] == node do k = i
+	for i = 1 to AlecMeasureAngle_pickCache.count where AlecMeasureAngle_pickCache[i][1] == node do k = i
 	local e
 	if k > 0 then
 	(
-		e = AlecAngle_pickCache[k]
-		deleteItem AlecAngle_pickCache k
+		e = AlecMeasureAngle_pickCache[k]
+		deleteItem AlecMeasureAngle_pickCache k
 	)
 	else
 	(
@@ -97,33 +97,33 @@ fn AlecAngle_usePick node =
 		grid.addNode node
 		grid.buildGrid()
 		e = #(node, snapshotAsMesh node, grid)
-		if AlecAngle_pickCache.count == 2 do
+		if AlecMeasureAngle_pickCache.count == 2 do
 		(
-			AlecAngle_freeEntry AlecAngle_pickCache[2]
-			deleteItem AlecAngle_pickCache 2
+			AlecMeasureAngle_freeEntry AlecMeasureAngle_pickCache[2]
+			deleteItem AlecMeasureAngle_pickCache 2
 		)
 	)
-	insertItem e AlecAngle_pickCache 1
-	AlecAngle_pickMesh = e[2]
-	AlecAngle_pickGrid = e[3]
+	insertItem e AlecMeasureAngle_pickCache 1
+	AlecMeasureAngle_pickMesh = e[2]
+	AlecMeasureAngle_pickGrid = e[3]
 )
 
--- the face under a screen point as #(hit pos, face index in AlecAngle_pickMesh), or undefined
-fn AlecAngle_faceAt screenPoint =
+-- the face under a screen point as #(hit pos, face index in AlecMeasureAngle_pickMesh), or undefined
+fn AlecMeasureAngle_faceAt screenPoint =
 (
 	local hit = AlecTools_surfaceAt screenPoint
 	if hit == undefined then undefined
 	else
 	(
-		AlecAngle_usePick hit[1]
+		AlecMeasureAngle_usePick hit[1]
 		local r = mapScreenToWorldRay screenPoint
-		if (AlecAngle_pickGrid.intersectRay r.pos r.dir false) == 0 then undefined
-		else #(hit[2].pos, AlecAngle_pickGrid.getHitFace (AlecAngle_pickGrid.getClosestHit()))
+		if (AlecMeasureAngle_pickGrid.intersectRay r.pos r.dir false) == 0 then undefined
+		else #(hit[2].pos, AlecMeasureAngle_pickGrid.getHitFace (AlecMeasureAngle_pickGrid.getClosestHit()))
 	)
 )
 
 -- the edges of a mesh face as #(a, b) each, world space; only the real ones, all 3 when the face has none
-fn AlecAngle_faceEdges m face =
+fn AlecMeasureAngle_faceEdges m face =
 (
 	local fv = getFace m face
 	local v = #(getVert m fv.x, getVert m fv.y, getVert m fv.z)
@@ -131,7 +131,7 @@ fn AlecAngle_faceEdges m face =
 	if edges.count == 0 then for i = 1 to 3 collect #(v[i], v[(mod i 3) + 1]) else edges
 )
 
-fn AlecAngle_segmentDistance p a b =
+fn AlecMeasureAngle_segmentDistance p a b =
 (
 	local ab = b - a
 	local t = amax 0.0 (amin 1.0 ((dot (p - a) ab) / (dot ab ab)))
@@ -140,192 +140,204 @@ fn AlecAngle_segmentDistance p a b =
 
 -- what is under a screen point for the mode (#edges or #faces): #(item, highlight lines), or undefined;
 -- an edge item is #(a, b), the real edge nearest to the mouse; a face item is #(pos, normal)
-fn AlecAngle_hoverAt screenPoint mode =
+fn AlecMeasureAngle_hoverAt screenPoint mode =
 (
-	local f = AlecAngle_faceAt screenPoint
+	local f = AlecMeasureAngle_faceAt screenPoint
 	if f == undefined then undefined
 	else
 	(
-		local edges = AlecAngle_faceEdges AlecAngle_pickMesh f[2]
-		if mode == #faces then #(#(f[1], getFaceNormal AlecAngle_pickMesh f[2]), edges)
+		local edges = AlecMeasureAngle_faceEdges AlecMeasureAngle_pickMesh f[2]
+		if mode == #faces then #(#(f[1], getFaceNormal AlecMeasureAngle_pickMesh f[2]), edges)
 		else
 		(
 			local best = edges[1]
-			for e in edges where (AlecAngle_segmentDistance f[1] e[1] e[2]) < (AlecAngle_segmentDistance f[1] best[1] best[2]) do best = e
+			for e in edges where (AlecMeasureAngle_segmentDistance f[1] e[1] e[2]) < (AlecMeasureAngle_segmentDistance f[1] best[1] best[2]) do best = e
 			#(best, #(best))
 		)
 	)
 )
 
--- state of the pick command: #edges or #faces, the picked items and what is under the mouse (as AlecAngle_hoverAt gives it)
-global AlecAngle_mode = #edges
-global AlecAngle_picked = #()
-global AlecAngle_hover = undefined
+-- state of the pick command: #edges or #faces, the picked items and what is under the mouse (as AlecMeasureAngle_hoverAt gives it)
+global AlecMeasureAngle_mode = #edges
+global AlecMeasureAngle_picked = #()
+global AlecMeasureAngle_hover = undefined
 
-fn AlecAngle_pickOverlay =
+fn AlecMeasureAngle_pickOverlay =
 (
-	local items = for i in AlecAngle_picked collect i
-	if items.count < 2 and AlecAngle_hover != undefined do append items AlecAngle_hover[1]
-	local normal = if AlecAngle_flat then AlecAngle_normal else undefined
-	local ov = if AlecAngle_mode == #faces then AlecAngle_facesOverlay items normal
+	local items = for i in AlecMeasureAngle_picked collect i
+	if items.count < 2 and AlecMeasureAngle_hover != undefined do append items AlecMeasureAngle_hover[1]
+	local normal = if AlecMeasureAngle_flat then AlecMeasureAngle_normal else undefined
+	local ov = if AlecMeasureAngle_mode == #faces then AlecMeasureAngle_facesOverlay items normal
 	else
 	(
 		local points = #()
 		for e in items do join points e
-		AlecAngle_linesOverlay (if normal != undefined and points.count > 0 then AlecAngle_project points normal else points)
+		AlecMeasureAngle_linesOverlay (if normal != undefined and points.count > 0 then AlecMeasureAngle_project points normal else points)
 	)
-	if AlecAngle_hover != undefined do join ov.lines AlecAngle_hover[2]
+	if AlecMeasureAngle_hover != undefined do join ov.lines AlecMeasureAngle_hover[2]
 	ov
 )
 
-fn AlecAngle_pickShow =
+fn AlecMeasureAngle_pickPrompt =
 (
-	AlecAngle_overlay = AlecAngle_pickOverlay()
-	local what = if AlecAngle_mode == #faces then "face" else "edge"
-	local n = AlecAngle_picked.count
-	replacePrompt ((if n < 2 then "Measure Angle: click " + what + " " + ((n + 1) as string) + " of 2" else "Measure Angle: click = new measure") \
-		+ AlecAngle_promptTail())
+	local what = if AlecMeasureAngle_mode == #faces then "face" else "edge"
+	local n = AlecMeasureAngle_picked.count
+	(if n < 2 then "Measure Angle: click " + what + " " + ((n + 1) as string) + " of 2" else "Measure Angle: click = new measure") + AlecMeasureAngle_promptTail()
+)
+
+fn AlecMeasureAngle_pickShow =
+(
+	AlecMeasureAngle_overlay = AlecMeasureAngle_pickOverlay()
+	AlecMeasureAngle_showResult()
+	replacePrompt (AlecMeasureAngle_pickPrompt())
 	redrawViews()
 )
 
-fn AlecAngle_pickToggle =
+fn AlecMeasureAngle_pickToggle =
 (
-	AlecAngle_flat = not AlecAngle_flat
-	AlecAngle_pickShow()
+	AlecMeasureAngle_flat = not AlecMeasureAngle_flat
+	AlecMeasureAngle_pickShow()
 )
 
-tool AlecAngle_pickTool
+tool AlecMeasureAngle_pickTool
 (
-	fn track = if AlecTools_hoverMoved viewPoint do
+	fn track =
 	(
-		AlecAngle_hover = AlecAngle_hoverAt viewPoint AlecAngle_mode
-		AlecAngle_pickShow()
+		AlecTools_ctrlSeen()
+		if AlecTools_hoverMoved viewPoint do
+		(
+			AlecMeasureAngle_hover = AlecMeasureAngle_hoverAt viewPoint AlecMeasureAngle_mode
+			AlecMeasureAngle_pickShow()
+		)
 	)
 
 	on start do
 	(
-		AlecAngle_picked = #()
-		AlecAngle_hover = undefined
-		AlecAngle_overlay = AlecTools_Overlay()
-		AlecTools_beginOverlayTool AlecAngle_draw AlecAngle_pickToggle
+		AlecMeasureAngle_picked = #()
+		AlecMeasureAngle_hover = undefined
+		AlecMeasureAngle_overlay = AlecTools_Overlay()
+		AlecTools_beginOverlayTool AlecMeasureAngle_draw AlecMeasureAngle_pickToggle
 	)
 	on freeMove do track()
 	on mouseMove clickno do track()
 	-- the first click comes twice, on press (1) and on release (2): the release is skipped
 	on mousePoint clickno do if clickno != 2 do
 	(
-		local h = AlecAngle_hoverAt viewPoint AlecAngle_mode
+		local h = AlecMeasureAngle_hoverAt viewPoint AlecMeasureAngle_mode
 		if h != undefined do
 		(
-			if AlecAngle_picked.count == 2 do AlecAngle_picked = #()
-			append AlecAngle_picked h[1]
+			if AlecMeasureAngle_picked.count == 2 do AlecMeasureAngle_picked = #()
+			append AlecMeasureAngle_picked h[1]
 		)
-		AlecAngle_hover = h
-		AlecAngle_pickShow()
+		AlecMeasureAngle_hover = h
+		AlecMeasureAngle_pickShow()
 	)
 	on stop do
 	(
-		AlecAngle_overlay = undefined
-		AlecAngle_freePick()
+		AlecMeasureAngle_overlay = undefined
+		AlecMeasureAngle_freePick()
 		AlecTools_endOverlayTool()
 	)
 )
 
--- the plane picked by AlecAngle_planeTool: #points (3 clicks with snaps) or #face (a click on a face); its normal, or undefined
-global AlecAngle_planeBy = #points
-global AlecAngle_planePoints = #()
-global AlecAngle_planeNormal = undefined
+-- the plane picked by AlecMeasureAngle_planeTool: #points (3 clicks with snaps) or #face (a click on a face); its normal, or undefined
+global AlecMeasureAngle_planeBy = #points
+global AlecMeasureAngle_planePoints = #()
+global AlecMeasureAngle_planeNormal = undefined
 
-tool AlecAngle_planeTool
+tool AlecMeasureAngle_planeTool
 (
 	fn track =
 	(
 		local ov = AlecTools_Overlay()
-		if AlecAngle_planeBy == #face then
+		if AlecMeasureAngle_planeBy == #face then
 		(
-			local h = AlecAngle_hoverAt viewPoint #faces
+			local h = AlecMeasureAngle_hoverAt viewPoint #faces
 			if h != undefined do ov.lines = h[2]
 		)
 		else
 		(
-			local points = for p in AlecAngle_planePoints collect p
+			local points = for p in AlecMeasureAngle_planePoints collect p
 			if points.count > 0 do append points worldPoint
 			if points.count >= 2 do ov.lines = for i = 1 to points.count collect #(points[i], points[(mod i points.count) + 1])
 		)
-		AlecAngle_overlay = ov
+		AlecMeasureAngle_overlay = ov
 		redrawViews()
 	)
 
 	on start do
 	(
-		AlecAngle_planePoints = #()
-		AlecAngle_planeNormal = undefined
-		AlecAngle_overlay = AlecTools_Overlay()
-		AlecTools_beginOverlayTool AlecAngle_draw undefined
+		AlecMeasureAngle_planePoints = #()
+		AlecMeasureAngle_planeNormal = undefined
+		AlecMeasureAngle_overlay = AlecTools_Overlay()
+		AlecTools_beginOverlayTool AlecMeasureAngle_draw undefined
 	)
 	on freeMove do track()
 	on mouseMove clickno do track()
 	on mousePoint clickno do if clickno != 2 do
 	(
-		if AlecAngle_planeBy == #face then
+		if AlecMeasureAngle_planeBy == #face then
 		(
-			local h = AlecAngle_hoverAt viewPoint #faces
+			local h = AlecMeasureAngle_hoverAt viewPoint #faces
 			if h != undefined do
 			(
-				AlecAngle_planeNormal = h[1][2]
+				AlecMeasureAngle_planeNormal = h[1][2]
 				#stop
 			)
 		)
 		else
 		(
-			append AlecAngle_planePoints worldPoint
-			if AlecAngle_planePoints.count == 3 do
+			append AlecMeasureAngle_planePoints worldPoint
+			if AlecMeasureAngle_planePoints.count == 3 do
 			(
-				local p = AlecAngle_planePoints
+				local p = AlecMeasureAngle_planePoints
 				local n = cross (p[2] - p[1]) (p[3] - p[1])
-				if length n > 0.0001 do AlecAngle_planeNormal = normalize n
+				if length n > 0.0001 do AlecMeasureAngle_planeNormal = normalize n
 				#stop
 			)
 		)
 	)
 	on stop do
 	(
-		AlecAngle_overlay = undefined
-		AlecAngle_freePick()
+		AlecMeasureAngle_overlay = undefined
+		AlecMeasureAngle_freePick()
 		AlecTools_endOverlayTool()
 	)
 )
 
--- the normal of a plane picked by #points or #face, or undefined when it was cancelled (or the 3 points are on one line)
-fn AlecAngle_pickPlane method =
+fn AlecMeasureAngle_pickPlaneTool =
 (
-	AlecAngle_planeBy = method
-	local snapWasOn = snapMode.active
-	if method == #points do snapMode.active = true
-	local text = if method == #points then "Measure Angle: click 3 points of the plane" else "Measure Angle: click the face of the plane"
-	startTool AlecAngle_planeTool snap:#3D prompt:(text + " | right click or Esc = cancel")
-	snapMode.active = snapWasOn
-	AlecAngle_planeNormal
+	local text = if AlecMeasureAngle_planeBy == #points then "Measure Angle: click 3 points of the plane" else "Measure Angle: click the face of the plane"
+	startTool AlecMeasureAngle_planeTool snap:#3D prompt:(text + " | right click or Esc = cancel")
 )
 
-fn AlecAngle_runPick mode normal label flat =
+-- the normal of a plane picked by #points or #face, or undefined when it was cancelled (or the 3 points are on one line)
+fn AlecMeasureAngle_pickPlane method =
 (
-	AlecAngle_mode = mode
-	AlecAngle_normal = normal
-	AlecAngle_planeName = label
-	AlecAngle_flat = flat
-	startTool AlecAngle_pickTool prompt:("Measure Angle: click " + (if mode == #faces then "face" else "edge") + " 1 of 2" + AlecAngle_promptTail())
+	AlecMeasureAngle_planeBy = method
+	AlecTools_withSnaps AlecMeasureAngle_pickPlaneTool on:(method == #points or snapMode.active)
+	AlecMeasureAngle_planeNormal
+)
+
+fn AlecMeasureAngle_runPick mode normal label flat =
+(
+	AlecMeasureAngle_mode = mode
+	AlecMeasureAngle_normal = normal
+	AlecMeasureAngle_planeName = label
+	AlecMeasureAngle_flat = flat
+	AlecMeasureAngle_picked = #()
+	startTool AlecMeasureAngle_pickTool prompt:(AlecMeasureAngle_pickPrompt())
 )
 
 -- the caddy's Start (tools/measureAngleCaddy.py): what is 1 Points, 2 Edges, 3 Faces; plane is 1 3D, 2 World XY, 3 World XZ, 4 World YZ, 5 3 points, 6 Pick face
-fn AlecAngle_dialogStart what plane =
+fn AlecMeasureAngle_dialogStart what plane =
 (
 	local normal = case plane of
 	(
 		3: [0, 1, 0]
 		4: [1, 0, 0]
-		5: AlecAngle_pickPlane #points
-		6: AlecAngle_pickPlane #face
+		5: AlecMeasureAngle_pickPlane #points
+		6: AlecMeasureAngle_pickPlane #face
 		default: [0, 0, 1]
 	)
 	if normal != undefined do
@@ -334,9 +346,9 @@ fn AlecAngle_dialogStart what plane =
 		local flat = plane != 1
 		case what of
 		(
-			1: AlecAngle_run normal:normal name:label flat:flat
-			2: AlecAngle_runPick #edges normal label flat
-			3: AlecAngle_runPick #faces normal label flat
+			1: AlecMeasureAngle_start normal:normal name:label flat:flat
+			2: AlecMeasureAngle_runPick #edges normal label flat
+			3: AlecMeasureAngle_runPick #faces normal label flat
 		)
 	)
 )

@@ -6,7 +6,6 @@ iconName:":/Icons/MaterialEditor/PickMaterialFromObject_24.png"
 (
 	on execute do
 	(
-		fileIn (AlecTools_path "tools/matchMaterial.ms")
-		execute "AlecMatchMat_execute()"
+		AlecTools_runTool "matchMaterial.ms" "AlecMatchMaterial_run()"
 	)
 )

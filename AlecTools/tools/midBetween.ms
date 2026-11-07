@@ -1,79 +1,71 @@
--- Mid Between: the selection (picked first if there is none) moves so its center lands on the middle of some points.
--- Click: pick the points, right click applies. Shift+Click (or a toolbar right click): the same with a caddy (tools/midBetweenCaddy.py); right click only ends the picking, OK applies, Cancel drops it.
--- A red dummy shows where the center of the selection will land and follows every point and setting; nothing moves until the end.
--- Points: clicked with snaps (Esc cancels) or taken from the pivots of picked objects (right click or Esc ends the picking).
+-- Mid Between: the selection moves so its center lands on the middle of some picked points.
+-- Every run opens the caddy (tools/midBetweenCaddy.py) and the picking starts at once; with nothing selected, the first click picks what moves.
+-- Left clicks in a viewport pick: snap points (snaps forced on) or objects, whose pivots are the points (the default).
+-- Enter moves and closes; a right click (in a viewport or on the caddy), or the macro's button or shortcut again, cancels and closes.
+-- Esc does nothing: it only starts the same pick again (Esc crashed Max).
+-- A change on the caddy applies at once and the picking goes on; switching between snap points and object pivots restarts the pick.
+-- The preview is drawn in the viewports (lib/overlay.ms): an orange box at each picked point and, in red, the box where the center of
+-- the selection lands with a line from where it is now. Nothing moves until Enter, which moves in one undo step.
 -- Objects: the center of the selection is the average of the pivots, or the center of its bounding box (settings.bounds).
 -- Sub-objects (Editable Poly, Edit Poly): the center of the selected vertices; edges and faces count by their vertices.
 -- Editable Poly and Edit Poly do not share commands: polyop.* for the first, the modifier's own methods for the second.
 
+AlecTools_closeCaddy()
+
 -- settings: the last choice is the next default, for this scene (lib/settings.ms)
-struct AlecMid_Settings
+struct AlecMidBetween_Settings
 (
 	bounds = false,       -- the center of what moves: bounding box instead of the average
 	targetBounds = false, -- the middle of the points: bounding box of the points instead of their average
-	fromObjects = false,  -- points come from the pivots of picked objects instead of clicks
+	fromObjects = true,   -- points come from the pivots of picked objects instead of snap clicks
 	x = true, y = true, z = true -- axes along which the move happens
 )
 
--- one run of the tool; verts is undefined when whole objects move, preview is the red dummy, ended stops late events of a picking that was still running
-struct AlecMid_Session (settings, points = #(), cur, node, verts, preview, ended = false)
+-- one run of the tool; verts is undefined when whole objects move. landing is where the center will land (undefined without points),
+-- overlays what the viewports draw. picking is true while a pick waits for a click, so the caddy knows there is a pick to stop;
+-- restart asks the loop for a new pick (the kind of pick changed), ended stops the loop
+struct AlecMidBetween_Session (settings, points = #(), cur, node, verts, landing, overlays = #(), picking = false, restart = false, ended = false)
 
-global AlecMid_active = undefined
+global AlecMidBetween_active = undefined
 
 -- points and axes
 
 -- the average of the points, or the center of their bounding box
-fn AlecMid_center points useBounds =
+fn AlecMidBetween_center points useBounds =
 (
-	if not useBounds then AlecTools_average points
-	else
-	(
-		local b = AlecTools_pointsBounds points
-		(b[1] + b[2]) / 2
-	)
+	if useBounds then AlecTools_boundsCenter (AlecTools_pointsBounds points) else AlecTools_average points
 )
 
 -- a move with the axes that are switched off zeroed
-fn AlecMid_mask delta s =
+fn AlecMidBetween_mask delta s =
 (
 	[if s.x then delta.x else 0, if s.y then delta.y else 0, if s.z then delta.z else 0]
 )
 
 -- objects
 
-fn AlecMid_hasSelectedAncestor node =
-(
-	local p = node.parent
-	while p != undefined and not p.isSelected do p = p.parent
-	p != undefined
-)
-
 -- the center of the selected objects, in world space; the bounding box is tight on the geometry (selection.center is not on rotated objects)
-fn AlecMid_objectsCenter s =
+fn AlecMidBetween_objectsCenter s =
 (
 	local nodes = selection as array
-	if s.bounds then
-	(
-		local b = AlecTools_bounds nodes (matrix3 1)
-		(b[1] + b[2]) / 2
-	)
+	if s.bounds then AlecTools_boundsCenter (AlecTools_bounds nodes (matrix3 1))
 	else in coordsys world AlecTools_average (for o in nodes collect o.pos)
 )
 
 -- moves the selected objects so their center is at mid; a selected child follows its selected parent, so only the top ones are moved
-fn AlecMid_moveObjects mid s =
+fn AlecMidBetween_moveObjects mid s =
 (
 	in coordsys world
 	(
-		local delta = AlecMid_mask (mid - AlecMid_objectsCenter s) s
-		for o in selection where not (AlecMid_hasSelectedAncestor o) do move o delta
+		local delta = AlecMidBetween_mask (mid - AlecMidBetween_objectsCenter s) s
+		for o in AlecTools_topLevel (selection as array) do move o delta
 	)
 )
 
 -- sub-objects
 
 -- the vertices of the current sub-object selection, undefined for an unsupported object
-fn AlecMid_selectedVerts cur node =
+fn AlecMidBetween_selectedVerts cur node =
 (
 	local level = subObjectLevel
 	if classOf cur == Editable_Poly then
@@ -102,28 +94,41 @@ fn AlecMid_selectedVerts cur node =
 	else undefined
 )
 
-fn AlecMid_worldVert cur node v =
+-- the Edit Poly modifier reads (GetVertex) and moves (MoveSelection) along Max's reference coordinate system, even with node:, so it
+-- works in World for that time and the user's system is put back after
+fn AlecMidBetween_worldVert cur node v =
 (
-	if classOf cur == Edit_Poly then cur.GetVertex v node:node else polyop.getVert node v node:node
+	if classOf cur == Edit_Poly then
+	(
+		local system = getRefCoordSys()
+		setRefCoordSys #world
+		local p = cur.GetVertex v node:node
+		setRefCoordSys system
+		p
+	)
+	else polyop.getVert node v node:node
 )
 
 -- a plain loop: "for ... collect" with a function parameter inside raises "Bad free thunk" here
-fn AlecMid_vertsCenter cur node verts useBounds =
+fn AlecMidBetween_vertsCenter cur node verts useBounds =
 (
 	local points = #()
-	for v in verts do append points (AlecMid_worldVert cur node v)
-	AlecMid_center points useBounds
+	for v in verts do append points (AlecMidBetween_worldVert cur node v)
+	AlecMidBetween_center points useBounds
 )
 
 -- moves the vertices (and with them the edges and faces that were selected) so their center is at mid
-fn AlecMid_moveVerts cur node verts mid s =
+fn AlecMidBetween_moveVerts cur node verts mid s =
 (
-	local delta = AlecMid_mask (mid - AlecMid_vertsCenter cur node verts s.bounds) s
+	local delta = AlecMidBetween_mask (mid - AlecMidBetween_vertsCenter cur node verts s.bounds) s
 	if classOf cur == Edit_Poly then
 	(
+		local system = getRefCoordSys()
+		setRefCoordSys #world
 		cur.SetOperation #Transform
 		cur.MoveSelection delta
 		cur.Commit()
+		setRefCoordSys system
 	)
 	else
 		polyop.moveVert node verts delta node:node
@@ -132,14 +137,14 @@ fn AlecMid_moveVerts cur node verts mid s =
 -- session
 
 -- the session for the current selection and sub-object level, or undefined (with a message) when it cannot be moved
-fn AlecMid_newSession s =
+fn AlecMidBetween_newSession s =
 (
-	local sess = AlecMid_Session settings:s
-	if subObjectLevel != undefined and subObjectLevel != 0 do
+	local sess = AlecMidBetween_Session settings:s
+	if selection.count > 0 and subObjectLevel != undefined and subObjectLevel != 0 do
 	(
 		sess.node = selection[1]
 		sess.cur = modPanel.getCurrentObject()
-		sess.verts = AlecMid_selectedVerts sess.cur sess.node
+		sess.verts = AlecMidBetween_selectedVerts sess.cur sess.node
 		if sess.verts == undefined then
 		(
 			displayTempPrompt "Mid Between: sub-objects only work on Editable Poly or Edit Poly" 3000
@@ -155,181 +160,211 @@ fn AlecMid_newSession s =
 )
 
 -- the center of what the session moves, in world space
-fn AlecMid_sessionCenter sess =
+fn AlecMidBetween_sessionCenter sess =
 (
-	if sess.verts == undefined then AlecMid_objectsCenter sess.settings
-	else AlecMid_vertsCenter sess.cur sess.node sess.verts sess.settings.bounds
+	if sess.verts == undefined then AlecMidBetween_objectsCenter sess.settings
+	else AlecMidBetween_vertsCenter sess.cur sess.node sess.verts sess.settings.bounds
 )
 
 -- the move of the session with its current settings and points
-fn AlecMid_apply sess =
+fn AlecMidBetween_apply sess =
 (
-	local mid = AlecMid_center sess.points sess.settings.targetBounds
-	if sess.verts == undefined then AlecMid_moveObjects mid sess.settings
-	else AlecMid_moveVerts sess.cur sess.node sess.verts mid sess.settings
+	local mid = AlecMidBetween_center sess.points sess.settings.targetBounds
+	if sess.verts == undefined then AlecMidBetween_moveObjects mid sess.settings
+	else AlecMidBetween_moveVerts sess.cur sess.node sess.verts mid sess.settings
 )
 
-fn AlecMid_removePreview sess =
+-- preview: drawn by the viewports (no scene node, so nothing to snap to, to undo or to leave behind)
+
+fn AlecMidBetween_draw =
 (
-	if sess.preview != undefined and isValidNode sess.preview do with undo off (delete sess.preview)
-	sess.preview = undefined
+	if AlecMidBetween_active != undefined do for ov in AlecMidBetween_active.overlays do AlecTools_drawOverlay ov
 )
 
--- a red dummy where the center of the selection will land; it is frozen so snaps ignore it, and showFrozenInGray is off or the viewport draws it gray
-fn AlecMid_updatePreview sess =
+-- an orange box at each picked point; in red the box where the center of what moves lands and a line from where it is now
+fn AlecMidBetween_updatePreview sess =
 (
-	if sess.ended then ok
-	else if sess.points.count == 0 then AlecMid_removePreview sess
-	else
+	if not sess.ended do
 	(
-		local center = AlecMid_sessionCenter sess
-		local mid = AlecMid_center sess.points sess.settings.targetBounds
-		local landing = center + AlecMid_mask (mid - center) sess.settings
-		if sess.preview == undefined or not (isValidNode sess.preview) do
-			with undo off (sess.preview = Dummy name:"AlecMid_preview" boxsize:[10, 10, 10] wireColor:red isFrozen:true showFrozenInGray:false)
-		with undo off (sess.preview.pos = landing)
+		local picks = AlecTools_Overlay boxColor:orange
+		for p in sess.points do AlecTools_addBox picks (p - [3, 3, 3]) (p + [3, 3, 3]) (matrix3 1)
+		local landingOv = AlecTools_Overlay boxColor:red lineColor:red
+		sess.landing = undefined
+		if sess.points.count > 0 and selection.count > 0 do
+		(
+			local center = AlecMidBetween_sessionCenter sess
+			local mid = AlecMidBetween_center sess.points sess.settings.targetBounds
+			sess.landing = center + AlecMidBetween_mask (mid - center) sess.settings
+			AlecTools_addBox landingOv (sess.landing - [5, 5, 5]) (sess.landing + [5, 5, 5]) (matrix3 1)
+			append landingOv.lines #(center, sess.landing)
+		)
+		sess.overlays = #(picks, landingOv)
 	)
 	redrawViews()
 )
 
--- ends the command: the dummy goes, and a picking that is still running is stopped by switching to the Select tool (pickPoint and pickObject both return then)
-fn AlecMid_end =
+-- ends the command: the preview goes, and a pick that is still waiting is stopped by switching to the Select tool (the pick then
+-- returns and the loop sees ended)
+fn AlecMidBetween_end =
 (
-	if AlecMid_active != undefined do
+	local sess = AlecMidBetween_active
+	if sess != undefined do
 	(
-		AlecMid_active.ended = true
-		AlecMid_removePreview AlecMid_active
-		AlecMid_active = undefined
+		sess.ended = true
+		AlecMidBetween_active = undefined
+		AlecTools_endOverlayTool()
+		if sess.picking do max select
+	)
+)
+
+-- Enter: the move as one undo step, then the end; without points nothing moves
+fn AlecMidBetween_accept =
+(
+	local sess = AlecMidBetween_active
+	if sess != undefined do
+	(
+		if sess.points.count == 0 then displayTempPrompt "Mid Between: no point was picked, nothing moved" 3000
+		else
+		(
+			undo "Mid Between" on (AlecMidBetween_apply sess)
+			displayTempPrompt "Mid Between: moved" 3000
+		)
+		AlecMidBetween_end()
+	)
+)
+
+-- the waiting pick returns (it stays in the session's loop, which starts a new one with the current settings)
+fn AlecMidBetween_pickAgain sess =
+(
+	if sess.picking do
+	(
+		sess.restart = true
 		max select
-		redrawViews()
 	)
-)
-
--- without points (after a picking that gave none) there is nothing to apply
-fn AlecMid_accept =
-(
-	if AlecMid_active.points.count > 0 do undo "Mid Between" on (AlecMid_apply AlecMid_active)
-	AlecMid_end()
-)
-
--- picking
-
--- markers are made and deleted with undo off, so they never end up in the undo step of the move
-fn AlecMid_addMarker p =
-(
-	with undo off (Dummy name:"AlecMid_marker" pos:p boxsize:[6, 6, 6] wireColor:orange)
-)
-
-fn AlecMid_removeMarkers markers =
-(
-	with undo off (delete markers)
-)
-
--- the points the user clicks go into sess.points, one by one with the preview following, until a right click; Esc cancels and leaves it empty
-fn AlecMid_pickPoints sess =
-(
-	local snapWasOn = snapMode.active
-	snapMode.active = true
-	local markers = #()
-	local answer = undefined
-	while classOf answer != Name do
-	(
-		local points = sess.points
-		local text = "Mid Between: click point " + ((points.count + 1) as string) + ", right click = done, Esc = cancel"
-		answer = if points.count == 0 then pickPoint snap:#3D prompt:text else pickPoint snap:#3D rubberBand:points[points.count] prompt:text
-		if classOf answer == Point3 do
-		(
-			append points answer
-			append markers (AlecMid_addMarker answer)
-			AlecMid_updatePreview sess
-		)
-	)
-	AlecMid_removeMarkers markers
-	snapMode.active = snapWasOn
-	if answer == #escape do sess.points = #()
-)
-
--- only objects that are not being moved can give a point
-fn AlecMid_notMoving node = not node.isSelected
-
--- the pivots of the picked objects go into sess.points; pickObject gives undefined for a right click and for Esc alike, so both end the picking
-fn AlecMid_pickObjectPoints sess =
-(
-	local node = undefined
-	do
-	(
-		local text = "Mid Between: pick object " + ((sess.points.count + 1) as string) + ", right click or Esc = done"
-		node = pickObject prompt:text filter:AlecMid_notMoving select:false
-		if node != undefined do
-		(
-			append sess.points node.pos
-			AlecMid_updatePreview sess
-		)
-	)
-	while node != undefined
-)
-
--- a new picking starts from nothing: the old points and their dummy go first
-fn AlecMid_collectPoints sess =
-(
-	sess.points = #()
-	AlecMid_updatePreview sess
-	if sess.settings.fromObjects then AlecMid_pickObjectPoints sess else AlecMid_pickPoints sess
 )
 
 -- what the caddy (tools/midBetweenCaddy.py) calls
 
--- new settings: saved for this scene, the preview follows
-fn AlecMid_change bounds targetBounds fromObjects x y z =
+-- new settings: saved for this scene, the preview follows; a switch between snap points and object pivots restarts the pick
+fn AlecMidBetween_change bounds targetBounds fromObjects x y z =
 (
-	local s = AlecMid_Settings bounds:bounds targetBounds:targetBounds fromObjects:fromObjects x:x y:y z:z
+	local sess = AlecMidBetween_active
+	local s = AlecMidBetween_Settings bounds:bounds targetBounds:targetBounds fromObjects:fromObjects x:x y:y z:z
 	AlecTools_rememberSettings "MidBetween" s
-	AlecMid_active.settings = s
-	AlecMid_updatePreview AlecMid_active
+	local switched = s.fromObjects != sess.settings.fromObjects
+	sess.settings = s
+	AlecMidBetween_updatePreview sess
+	if switched do AlecMidBetween_pickAgain sess
 )
 
--- a new picking from nothing, by clicks or by object pivots as the settings say
-fn AlecMid_repick = AlecMid_collectPoints AlecMid_active
+-- the picked points are dropped; the pick starts again (its rubber band went from the last point)
+fn AlecMidBetween_clear =
+(
+	local sess = AlecMidBetween_active
+	sess.points = #()
+	AlecMidBetween_updatePreview sess
+	AlecMidBetween_pickAgain sess
+)
+
+-- picking
+
+-- the second line of the pick tag
+fn AlecMidBetween_hint = "left click = pick, Enter = move, right click = cancel"
+
+fn AlecMidBetween_tag text = AlecTools_showPickTag ("Mid Between: " + text) hint:(AlecMidBetween_hint())
+
+fn AlecMidBetween_pickMover =
+(
+	AlecMidBetween_tag "click the object to move"
+	pickObject prompt:"Mid Between: click the object to move" select:true
+)
+
+-- only objects that are not being moved can give a point
+fn AlecMidBetween_notMoving node = not node.isSelected
+
+fn AlecMidBetween_pickPivot sess =
+(
+	local text = "click object " + ((sess.points.count + 1) as string) + ", its pivot is the point"
+	AlecMidBetween_tag text
+	pickObject prompt:("Mid Between: " + text) filter:AlecMidBetween_notMoving select:false
+)
+
+fn AlecMidBetween_pickSnapPoint sess =
+(
+	local points = sess.points
+	local text = "click point " + ((points.count + 1) as string) + " (snaps on)"
+	AlecMidBetween_tag text
+	if points.count == 0 then pickPoint snap:#3D prompt:("Mid Between: " + text)
+	else pickPoint snap:#3D rubberBand:points[points.count] prompt:("Mid Between: " + text)
+)
+
+-- one pick, the kind the selection and the settings ask for
+fn AlecMidBetween_pick sess =
+(
+	sess.picking = true
+	local answer = if selection.count == 0 then AlecMidBetween_pickMover()
+		else if sess.settings.fromObjects then AlecMidBetween_pickPivot sess
+		else AlecMidBetween_pickSnapPoint sess
+	sess.picking = false
+	answer
+)
+
+-- what a pick gave: a Point3 to add, #again (pick again), #cancel, or #ended (the caddy ended the session and stopped the pick).
+-- Esc picks again, it must not close anything; pickObject gives undefined for a right click and for Esc alike, so escDown (Esc held
+-- when it returned) tells them apart. The object to move, picked with select:true, is selected: #again, the points come next.
+-- Anything else (a right click, another Max command that ended the pick) cancels
+fn AlecMidBetween_outcome sess answer escDown =
+(
+	if sess.ended then #ended
+	else if sess.restart then
+	(
+		sess.restart = false
+		#again
+	)
+	else if isValidNode answer then (if answer.isSelected then #again else answer.pos)
+	else if classOf answer == Point3 then answer
+	else if answer == #escape or (answer == undefined and escDown) then #again
+	else #cancel
+)
+
+-- picks until the session ends: by Enter or a cancel on the caddy (which stop the waiting pick), or a cancel here, which closes the caddy
+fn AlecMidBetween_pickLoop =
+(
+	local sess = AlecMidBetween_active
+	local caddy = python.import "AlecTools_caddy"
+	while not sess.ended and AlecMidBetween_active == sess do
+	(
+		local answer = AlecMidBetween_pick sess
+		local escDown = caddy.escape_down()
+		local outcome = AlecMidBetween_outcome sess answer escDown
+		if classOf outcome == Point3 then
+		(
+			append sess.points outcome
+			AlecMidBetween_updatePreview sess
+		)
+		else if outcome == #cancel then
+		(
+			AlecTools_closeCaddy()
+			AlecMidBetween_end()
+		)
+		else if escDown do caddy.wait_for_escape_up()
+	)
+)
+
+fn AlecMidBetween_pickWithSnaps = AlecTools_withSnaps AlecMidBetween_pickLoop
 
 -- run
 
--- with nothing selected, waits for the user to click the object to move, with a tag in the viewport saying so (right click or Esc gives up)
-fn AlecMid_waitForSelection =
-(
-	if selection.count == 0 do
-	(
-		AlecTools_showPickTag "Mid Between: click the object to move"
-		pickObject prompt:"Mid Between: pick the object to move, right click or Esc = cancel" select:true
-		AlecTools_closeCaddy()
-	)
-	selection.count > 0
-)
-
-fn AlecMid_run s showCaddy =
+-- the caddy opens first, then the picking runs until the session ends (the macro returns only then)
+fn AlecMidBetween_run =
 (
 	AlecTools_closeCaddy()
-	if not (AlecMid_waitForSelection()) then
-		displayTempPrompt "Mid Between: nothing selected" 3000
-	else
+	local sess = AlecMidBetween_newSession (AlecTools_recallSettings "MidBetween" (AlecMidBetween_Settings()))
+	if sess != undefined do
 	(
-		local sess = AlecMid_newSession s
-		if sess != undefined do
-		(
-			AlecMid_active = sess
-			if showCaddy do
-				python.ExecuteFile (AlecTools_path "tools/midBetweenCaddy.py")
-			AlecMid_collectPoints sess
-			if sess.points.count == 0 then
-			(
-				AlecTools_closeCaddy()
-				AlecMid_end()
-			)
-			else if not showCaddy do AlecMid_accept()
-		)
+		AlecMidBetween_active = sess
+		AlecTools_beginOverlayTool AlecMidBetween_draw undefined
+		python.ExecuteFile (AlecTools_path "tools/midBetweenCaddy.py")
+		AlecTools_withPickTag "Mid Between" AlecMidBetween_pickWithSnaps hint:(AlecMidBetween_hint())
 	)
-)
-
-fn AlecMid_execute showCaddy:false =
-(
-	AlecMid_run (AlecTools_recallSettings "MidBetween" (AlecMid_Settings())) showCaddy
 )

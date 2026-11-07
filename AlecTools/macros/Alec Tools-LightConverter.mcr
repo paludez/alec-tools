@@ -1,11 +1,7 @@
 macroScript LightConverter
 category:"Alec Tools"
-toolTip:"LightConverter - lights between Arnold and V-Ray"
+toolTip:"Light Converter - lights between Arnold and V-Ray. Click: convert with the last settings, Shift+Click or toolbar right click: caddy"
 buttonText:"Lights"
 (
-	on execute do
-	(
-		fileIn (AlecTools_path "tools/lightConverter.ms")
-		execute "AlecLight_run()"
-	)
+	on execute do AlecTools_runCaddyTool "LightConverter" "lightConverter.ms" "AlecLightConverter_run"
 )

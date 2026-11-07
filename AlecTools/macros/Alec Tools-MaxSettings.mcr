@@ -4,5 +4,5 @@ toolTip:"Max Settings - Export, Import and Restore the shortcuts, toolbars and m
 buttonText:"Max Settings"
 iconName:":/Icons/CommandPanel/Motion/BipedRollout/MotionMixer/ReloadFiles_32.png"
 (
-	on execute do python.ExecuteFile (AlecTools_path "tools/maxSettings.py")
+	on execute do AlecTools_runPython "maxSettings.py"
 )

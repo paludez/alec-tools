@@ -4,11 +4,5 @@ toolTip:"BBox - box cages around the selection. Click: apply with the last setti
 buttonText:"BBox"
 iconName:":/Icons/BlendedBoxMap/BoundingBox_24.png"
 (
-	on execute do
-	(
-		-- Shift (or a toolbar right click) is read first, before the file loads
-		local showCaddy = AlecTools_wantsOptions()
-		fileIn (AlecTools_path "tools/bbox.ms")
-		execute ("AlecBBox_run showCaddy:" + (showCaddy as string))
-	)
+	on execute do AlecTools_runCaddyTool "BBox" "bbox.ms" "AlecBBox_run"
 )

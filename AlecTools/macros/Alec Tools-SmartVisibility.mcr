@@ -6,8 +6,7 @@ iconName:":/Icons/Common/Toggle/Visible_off_24.png"
 (
 	on execute do
 	(
-		fileIn (AlecTools_path "tools/smartVisibility.ms")
-		execute "AlecSmartVis_execute #hide"
+		AlecTools_runTool "smartVisibility.ms" "AlecSmartVis_run #hide"
 	)
 )
 
@@ -19,8 +18,7 @@ iconName:":/Icons/MainUI/HideNonselectedCurves_24.png"
 (
 	on execute do
 	(
-		fileIn (AlecTools_path "tools/smartVisibility.ms")
-		execute "AlecSmartVis_execute #hideUnselected"
+		AlecTools_runTool "smartVisibility.ms" "AlecSmartVis_run #hideUnselected"
 	)
 )
 
@@ -32,7 +30,6 @@ iconName:":/Icons/Common/Toggle/Visible_on_24.png"
 (
 	on execute do
 	(
-		fileIn (AlecTools_path "tools/smartVisibility.ms")
-		execute "AlecSmartVis_execute #unhideAll"
+		AlecTools_runTool "smartVisibility.ms" "AlecSmartVis_run #unhideAll"
 	)
 )

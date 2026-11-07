@@ -1,7 +1,7 @@
 macroScript TransformPopup
 category:"Alec Tools"
-toolTip:"Transform Popup - World / Local Move, World / Local Rotate, Scale and Size fields at the mouse; run again or a click elsewhere closes it"
+toolTip:"Transform Popup - a caddy at the mouse with World / Local Move, World / Local Rotate, Scale and Size fields; Enter or a left click in a viewport accepts, a right click or run again cancels (the objects go back)"
 buttonText:"Transform Popup"
 (
-	on execute do python.ExecuteFile (AlecTools_path "tools/transformPopup.py")
+	on execute do AlecTools_switchTool "Transform Popup" "transformPopup.py" ""
 )

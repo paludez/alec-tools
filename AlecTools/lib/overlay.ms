@@ -1,6 +1,6 @@
--- Viewport overlay shared by the tools: boxes, lines and text, in world space, drawn with gw.* from a tool's own redraw callback:
+-- Viewport overlay shared by the tools: boxes, lines and text, in world space, drawn with gw.* from the tool's redraw callback:
 --   fn AlecX_draw = if <the tool is running> do AlecTools_drawOverlay ov
---   registerRedrawViewsCallback AlecX_draw ... unregisterRedrawViewsCallback AlecX_draw
+--   AlecTools_beginOverlayTool AlecX_draw ctrlAction ... AlecTools_endOverlayTool() (lib/overlayTool.ms, never the callback directly)
 -- The overlay is filled when something changes, not on every redraw. Lengths are written with units.formatValue (scene units).
 
 -- boxes = #(bottom 4 corners, top 4 corners), lines = #(p1, p2), labels = #(point, text)

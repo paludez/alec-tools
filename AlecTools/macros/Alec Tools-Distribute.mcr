@@ -4,11 +4,5 @@ toolTip:"Distribute - spread the selection along an axis. Click: apply with the 
 buttonText:"Distribute"
 iconName:":/Icons/MainUI/SpacingTool_24.png"
 (
-	on execute do
-	(
-		-- Shift (or a toolbar right click) is read first, before the file loads
-		local showCaddy = AlecTools_wantsOptions()
-		fileIn (AlecTools_path "tools/distribute.ms")
-		execute ("AlecDist_run showCaddy:" + (showCaddy as string))
-	)
+	on execute do AlecTools_runCaddyTool "Distribute" "distribute.ms" "AlecDistribute_run"
 )

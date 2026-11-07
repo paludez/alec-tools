@@ -4,9 +4,5 @@ toolTip:"Measure Clearance - move over a surface to see the distance to the next
 buttonText:"Measure Clearance"
 iconName:":/Icons/MainUI/NormalAlign_24.png"
 (
-	on execute do
-	(
-		fileIn (AlecTools_path "tools/measureClearance.ms")
-		execute "AlecClear_run()"
-	)
+	on execute do AlecTools_runTool "measureClearance.ms" "AlecMeasureClearance_run()"
 )

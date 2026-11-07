@@ -1,10 +1,10 @@
 -- LightConverter: reads a light of any source class into one record, which tools/lightConverterWrite.ms writes back out.
 
 -- VRayShadow areaShadowType of a Sphere
-global AlecLight_areaSphere = 1
+global AlecLightConverter_areaSphere = 1
 
 -- what the source light is, in renderer-neutral terms. Sizes are full sizes in scene units, node scale included
-struct AlecLight_Rec
+struct AlecLightConverter_Rec
 (
 	kind,                -- #point #distant #spot #quad #disc #cylinder #dome #ies #mesh
 	label,
@@ -35,59 +35,59 @@ struct AlecLight_Rec
 	notes = #()
 )
 
-fn AlecLight_note r text = append r.notes text
+fn AlecLightConverter_note r text = append r.notes text
 
-fn AlecLight_noteIf r cond text = if cond do AlecLight_note r text
+fn AlecLightConverter_noteIf r cond text = if cond do AlecLightConverter_note r text
 
-fn AlecLight_absScale node = [abs node.scale.x, abs node.scale.y, abs node.scale.z]
+fn AlecLightConverter_absScale node = [abs node.scale.x, abs node.scale.y, abs node.scale.z]
 
-fn AlecLight_uniformRadius r node radius =
+fn AlecLightConverter_uniformRadius r node radius =
 (
-	local s = AlecLight_absScale node
-	AlecLight_noteIf r (abs (s.x - s.y) > 0.001 or abs (s.x - s.z) > 0.001) "non-uniform scale: an ellipsoid in the source, renderers differ, the X scale was used"
+	local s = AlecLightConverter_absScale node
+	AlecLightConverter_noteIf r (abs (s.x - s.y) > 0.001 or abs (s.x - s.z) > 0.001) "non-uniform scale: an ellipsoid in the source, renderers differ, the X scale was used"
 	radius * s.x
 )
 
 -- sun and sky are not converted: LightConverter only lists them
 
-fn AlecLight_isSky m = m != undefined and (classOf m == ai_physical_sky or classOf m == VRaySky)
+fn AlecLightConverter_isSky m = m != undefined and (classOf m == ai_physical_sky or classOf m == VRaySky)
 
-fn AlecLight_isSunOrSky node =
+fn AlecLightConverter_isSunOrSky node =
 (
 	local c = classOf node.baseObject
-	c == VRaySun or (c == Arnold_Light and node.shapeType == 6 and AlecLight_isSky node.texmap) \
-		or (c == VRayLight and node.type == 1 and AlecLight_isSky node.texmap)
+	c == VRaySun or (c == Arnold_Light and node.shapeType == 6 and AlecLightConverter_isSky node.texmap) \
+		or (c == VRayLight and node.type == 1 and AlecLightConverter_isSky node.texmap)
 )
 
 -- maps
 
--- the map is copied to the new light as it is, whatever it is
-fn AlecLight_readMap r m = if m != undefined do r.texture = m
+-- the map is kept as it is; the writer converts a bitmap and lists a map that does not fit the target (tools/lightConverterWrite.ms)
+fn AlecLightConverter_readMap r m = if m != undefined do r.texture = m
 
 -- Arnold
 
-fn AlecLight_arnoldKind t = (#(#point, #distant, #spot, #quad, #disc, #cylinder, #dome, #ies, #mesh))[t + 1]
+fn AlecLightConverter_arnoldKind t = (#(#point, #distant, #spot, #quad, #disc, #cylinder, #dome, #ies, #mesh))[t + 1]
 
-fn AlecLight_arnoldColor r a =
+fn AlecLightConverter_arnoldColor r a =
 (
 	-- Kelvin replaces color and map
 	if a.useKelvin then
 	(
 		r.kelvin = a.kelvin
-		AlecLight_noteIf r (a.useTexmap and a.texmap != undefined) "map lost: Use Color Temperature replaces it"
+		AlecLightConverter_noteIf r (a.useTexmap and a.texmap != undefined) "map lost: Use Color Temperature replaces it"
 	)
 	else
 	(
-		if a.useTexmap do AlecLight_readMap r a.texmap
+		if a.useTexmap do AlecLightConverter_readMap r a.texmap
 		-- a map replaces the swatch in Arnold, V-Ray would multiply it in
 		r.color = if r.texture != undefined then white else a.color
-		AlecLight_noteIf r a.usePreset "Preset color not copied"
+		AlecLightConverter_noteIf r a.usePreset "Preset color not copied"
 	)
 	local f = a.filter
 	r.color = color (r.color.r * f.r / 255.0) (r.color.g * f.g / 255.0) (r.color.b * f.b / 255.0)
 )
 
-fn AlecLight_arnoldDecay r node =
+fn AlecLightConverter_arnoldDecay r node =
 (
 	for m in node.modifiers where classOf m == Arnold_Light_Decay do
 	(
@@ -100,12 +100,12 @@ fn AlecLight_arnoldDecay r node =
 	)
 )
 
-fn AlecLight_arnoldShape r node a =
+fn AlecLightConverter_arnoldShape r node a =
 (
-	local s = AlecLight_absScale node
+	local s = AlecLightConverter_absScale node
 	case r.kind of
 	(
-		#point: r.radius = AlecLight_uniformRadius r node a.lightRadius
+		#point: r.radius = AlecLightConverter_uniformRadius r node a.lightRadius
 		#distant: r.angle = a.angle
 		#spot:
 		(
@@ -113,7 +113,7 @@ fn AlecLight_arnoldShape r node a =
 			r.cone = a.cone_angle
 			r.penumbra = a.penumbra_angle
 			r.aspect = a.aspect_ratio
-			AlecLight_noteIf r (a.lens_radius != 0) "Lens Radius not copied"
+			AlecLightConverter_noteIf r (a.lens_radius != 0) "Lens Radius not copied"
 		)
 		#quad:
 		(
@@ -121,14 +121,14 @@ fn AlecLight_arnoldShape r node a =
 			r.width = a.quadY * s.y
 			r.spread = a.spread
 			r.portal = a.portal
-			AlecLight_noteIf r (a.soft_edge != 0) ("Soft Edge " + a.soft_edge as string + " not copied")
+			AlecLightConverter_noteIf r (a.soft_edge != 0) ("Soft Edge " + a.soft_edge as string + " not copied")
 			-- a fully round square is a disc
 			if a.quadRoundness >= 1.0 and abs (r.length - r.width) < 0.001 then
 			(
 				r.kind = #disc
 				r.radius = r.length / 2.0
 			)
-			else AlecLight_noteIf r (a.quadRoundness > 0) ("Roundness " + a.quadRoundness as string + " not copied")
+			else AlecLightConverter_noteIf r (a.quadRoundness > 0) ("Roundness " + a.quadRoundness as string + " not copied")
 		)
 		#disc:
 		(
@@ -138,14 +138,14 @@ fn AlecLight_arnoldShape r node a =
 		)
 		#cylinder:
 		(
-			r.radius = AlecLight_uniformRadius r node a.lightRadius
+			r.radius = AlecLightConverter_uniformRadius r node a.lightRadius
 			r.height = a.height * s.z
 		)
 		#dome:
 		(
 			r.format = a.format
 			r.resolution = a.resolution
-			AlecLight_noteIf r (a.portal_mode != 1) "Portal Mode not copied"
+			AlecLightConverter_noteIf r (a.portal_mode != 1) "Portal Mode not copied"
 		)
 		#ies:
 		(
@@ -157,26 +157,26 @@ fn AlecLight_arnoldShape r node a =
 	if r.kind == #quad or r.kind == #disc do r.resolution = a.quadResolution
 )
 
-fn AlecLight_arnoldNotes r a =
+fn AlecLightConverter_arnoldNotes r a =
 (
-	AlecLight_noteIf r (a.transmission != 1.0) ("Transmission " + a.transmission as string + " not copied")
-	AlecLight_noteIf r (a.sss != 1.0) ("SSS " + a.sss as string + " not copied")
-	AlecLight_noteIf r (a.indirect != 1.0) ("Indirect " + a.indirect as string + " not copied")
-	AlecLight_noteIf r (a.max_bounces != 999) ("Max Bounces " + a.max_bounces as string + " not copied")
-	AlecLight_noteIf r (a.camera > 0 and a.camera != 1.0) ("Camera " + a.camera as string + " became visible")
-	AlecLight_note r ("Samples " + a.samples as string + " not copied (V-Ray samples globally)")
+	AlecLightConverter_noteIf r (a.transmission != 1.0) ("Transmission " + a.transmission as string + " not copied")
+	AlecLightConverter_noteIf r (a.sss != 1.0) ("SSS " + a.sss as string + " not copied")
+	AlecLightConverter_noteIf r (a.indirect != 1.0) ("Indirect " + a.indirect as string + " not copied")
+	AlecLightConverter_noteIf r (a.max_bounces != 999) ("Max Bounces " + a.max_bounces as string + " not copied")
+	AlecLightConverter_noteIf r (a.camera > 0 and a.camera != 1.0) ("Camera " + a.camera as string + " became visible")
+	AlecLightConverter_note r ("Samples " + a.samples as string + " not copied (V-Ray samples globally)")
 )
 
-fn AlecLight_readArnold node =
+fn AlecLightConverter_readArnold node =
 (
 	local a = node.baseObject
-	local r = AlecLight_Rec kind:(AlecLight_arnoldKind a.shapeType) label:("Arnold " + (AlecLight_arnoldKind a.shapeType) as string)
+	local r = AlecLightConverter_Rec kind:(AlecLightConverter_arnoldKind a.shapeType) label:("Arnold " + (AlecLightConverter_arnoldKind a.shapeType) as string)
 	r.enabled = a.on
 	r.gain = a.intensity * 2.0 ^ a.exposure
 	r.normalize = a.normalize
-	AlecLight_arnoldColor r a
-	AlecLight_arnoldDecay r node
-	AlecLight_arnoldShape r node a
+	AlecLightConverter_arnoldColor r a
+	AlecLightConverter_arnoldDecay r node
+	AlecLightConverter_arnoldShape r node a
 	r.diffuse = a.diffuse
 	r.specular = a.specular
 	r.volume = a.volume
@@ -185,15 +185,15 @@ fn AlecLight_readArnold node =
 	r.shadowColor = a.shadow_color
 	r.shadowDensity = a.shadow_density
 	r.aov = a.aov
-	AlecLight_arnoldNotes r a
+	AlecLightConverter_arnoldNotes r a
 	r
 )
 
 -- V-Ray
 
-fn AlecLight_vrayKind t = (#(#quad, #dome, #point, #mesh, #disc))[t + 1]
+fn AlecLightConverter_vrayKind t = (#(#quad, #dome, #point, #mesh, #disc))[t + 1]
 
-fn AlecLight_vrayMeshKind r v =
+fn AlecLightConverter_vrayMeshKind r v =
 (
 	local src = v.mesh_source
 	r.source = src
@@ -201,17 +201,17 @@ fn AlecLight_vrayMeshKind r v =
 	if src != undefined and classOf src.baseObject == Cylinder and src.modifiers.count == 0 then
 	(
 		r.kind = #cylinder
-		r.radius = src.baseObject.radius * (AlecLight_absScale src).x
-		r.height = src.baseObject.height * (AlecLight_absScale src).z
+		r.radius = src.baseObject.radius * (AlecLightConverter_absScale src).x
+		r.height = src.baseObject.height * (AlecLightConverter_absScale src).z
 		r.source = undefined
 		r.cylinder = src
 	)
-	else AlecLight_noteIf r (src == undefined) "mesh light without a source node: pick the mesh on the Arnold light"
+	else AlecLightConverter_noteIf r (src == undefined) "mesh light without a source node: pick the mesh on the Arnold light"
 )
 
-fn AlecLight_vrayShape r node v =
+fn AlecLightConverter_vrayShape r node v =
 (
-	local s = AlecLight_absScale node
+	local s = AlecLightConverter_absScale node
 	case r.kind of
 	(
 		#quad:
@@ -220,20 +220,20 @@ fn AlecLight_vrayShape r node v =
 			r.width = v.sizeWidth * s.y
 		)
 		#disc: r.radius = v.size0 * s.x
-		#point: r.radius = AlecLight_uniformRadius r node v.size0
-		#mesh: AlecLight_vrayMeshKind r v
+		#point: r.radius = AlecLightConverter_uniformRadius r node v.size0
+		#mesh: AlecLightConverter_vrayMeshKind r v
 		#dome:
 		(
 			r.full = v.dome_spherical
-			AlecLight_noteIf r (not v.dome_spherical) "Spherical (full dome) off: the Arnold Skydome is a full dome, black out the lower half of its map by hand"
-			AlecLight_noteIf r v.dome_finite "Finite dome not copied: the Arnold Skydome is at infinity"
-			AlecLight_noteIf r v.dome_affect_alpha "Affect alpha not copied"
-			AlecLight_noteIf r (v.dome_rayDistanceMode != 0) "Ray Dist not copied"
+			AlecLightConverter_noteIf r (not v.dome_spherical) "Spherical (full dome) off: the Arnold Skydome is a full dome, black out the lower half of its map by hand"
+			AlecLightConverter_noteIf r v.dome_finite "Finite dome not copied: the Arnold Skydome is at infinity"
+			AlecLightConverter_noteIf r v.dome_affect_alpha "Affect alpha not copied"
+			AlecLightConverter_noteIf r (v.dome_rayDistanceMode != 0) "Ray Dist not copied"
 		)
 	)
 )
 
-fn AlecLight_vrayContribution r v =
+fn AlecLightConverter_vrayContribution r v =
 (
 	if r.kind == #dome or r.kind == #mesh then
 	(
@@ -248,7 +248,7 @@ fn AlecLight_vrayContribution r v =
 	r.volume = if v.affect_atmospherics then v.atmospherics_contribution else 0.0
 )
 
-fn AlecLight_readDecay r v =
+fn AlecLightConverter_readDecay r v =
 (
 	r.nearOn = v.decay_near_on
 	r.nearStart = v.decay_near_start
@@ -259,13 +259,13 @@ fn AlecLight_readDecay r v =
 )
 
 -- the swatch of a light in physical units gives the hue only: its brightest channel becomes 1
-fn AlecLight_hue c =
+fn AlecLightConverter_hue c =
 (
 	local top = amax #(c.r, c.g, c.b)
 	if top > 0 then color (c.r * 255.0 / top) (c.g * 255.0 / top) (c.b * 255.0 / top) else c
 )
 
-fn AlecLight_readVRayUnits r node v =
+fn AlecLightConverter_readVRayUnits r node v =
 (
 	local units = v.normalizeColor
 	r.unitsSet = units != 0
@@ -277,40 +277,40 @@ fn AlecLight_readVRayUnits r node v =
 		3: true
 		default: false
 	)
-	if units != 0 do r.color = AlecLight_hue r.color
+	if units != 0 do r.color = AlecLightConverter_hue r.color
 )
 
-fn AlecLight_readVRay node =
+fn AlecLightConverter_readVRay node =
 (
 	local v = node.baseObject
-	local r = AlecLight_Rec kind:(AlecLight_vrayKind v.type) label:("VRayLight " + (AlecLight_vrayKind v.type) as string)
+	local r = AlecLightConverter_Rec kind:(AlecLightConverter_vrayKind v.type) label:("VRayLight " + (AlecLightConverter_vrayKind v.type) as string)
 	r.enabled = v.on
 	r.gain = v.multiplier
 	r.color = v.color
 	if v.color_mode == 1 do r.kelvin = v.color_temperature
-	if v.texmap_on do AlecLight_readMap r v.texmap
-	AlecLight_readVRayUnits r node v
-	AlecLight_vrayShape r node v
-	AlecLight_vrayContribution r v
-	AlecLight_readDecay r v
+	if v.texmap_on do AlecLightConverter_readMap r v.texmap
+	AlecLightConverter_readVRayUnits r node v
+	AlecLightConverter_vrayShape r node v
+	AlecLightConverter_vrayContribution r v
+	AlecLightConverter_readDecay r v
 	r.invisible = v.invisible
 	r.castShadows = v.castShadows
 	r.doubleSided = v.doubleSided and (r.kind == #quad or r.kind == #disc)
 	r.spread = 1.0 - v.lightDistribution * v.lightDistribution_strength
 	r.flip = v.mesh_flip
 	r.resolution = v.texmap_resolution
-	AlecLight_noteIf r (v.lightDistribution > 0 and v.lightDistribution_strength < 1.0) "Directional strength below 1 folded into Spread"
-	AlecLight_noteIf r (not v.affect_reflections and v.affect_specular) "Affect reflections off with specular on: no Arnold pair"
-	AlecLight_noteIf r v.skylightPortal "old portal flag not recreated"
-	AlecLight_noteIf r (v.excludeList != undefined and v.excludeList.count > 0 or v.includeList != undefined and v.includeList.count > 0) "include/exclude list not copied: Arnold_Light has none"
-	AlecLight_noteIf r (v.light_excl_type != 0) "layer or Object ID exclusion not copied"
-	AlecLight_note r ("Subdivs " + v.subdivs as string + " not copied (Arnold samples per light)")
+	AlecLightConverter_noteIf r (v.lightDistribution > 0 and v.lightDistribution_strength < 1.0) "Directional strength below 1 folded into Spread"
+	AlecLightConverter_noteIf r (not v.affect_reflections and v.affect_specular) "Affect reflections off with specular on: no Arnold pair"
+	AlecLightConverter_noteIf r v.skylightPortal "old portal flag not recreated"
+	AlecLightConverter_noteIf r (v.excludeList != undefined and v.excludeList.count > 0 or v.includeList != undefined and v.includeList.count > 0) "include/exclude list not copied: Arnold_Light has none"
+	AlecLightConverter_noteIf r (v.light_excl_type != 0) "layer or Object ID exclusion not copied"
+	AlecLightConverter_note r ("Subdivs " + v.subdivs as string + " not copied (Arnold samples per light)")
 	r
 )
 
 -- the highest candela value of an IES file x its multiplier, undefined when the file cannot be read. LM-63: after the TILT line come
 -- 10 numbers (lamps, lumens, multiplier, vertical count, horizontal count, ...), 3 more, the angles, then the candela values
-fn AlecLight_iesPeak file =
+fn AlecLightConverter_iesPeak file =
 (
 	local f = if file != "" and doesFileExist file then openFile file mode:"rt" else undefined
 	if f == undefined then undefined
@@ -335,10 +335,10 @@ fn AlecLight_iesPeak file =
 	)
 )
 
-fn AlecLight_readIES node =
+fn AlecLightConverter_readIES node =
 (
 	local v = node.baseObject
-	local r = AlecLight_Rec kind:#ies label:"VRayIES"
+	local r = AlecLightConverter_Rec kind:#ies label:"VRayIES"
 	r.enabled = v.enabled
 	r.iesFile = v.ies_file
 	r.color = v.color
@@ -346,30 +346,30 @@ fn AlecLight_readIES node =
 	-- Rescale sets the file's peak in cd, Arnold's gain multiplies the file
 	if v.override_intensity == 2 and v.intensity_type == 1 then
 	(
-		local peak = AlecLight_iesPeak v.ies_file
+		local peak = AlecLightConverter_iesPeak v.ies_file
 		if peak != undefined and peak > 0 then r.gain = v.intensity_value / peak
-		else AlecLight_note r "Override intensity not copied: the IES file cannot be read"
+		else AlecLightConverter_note r "Override intensity not copied: the IES file cannot be read"
 	)
-	else AlecLight_noteIf r (v.override_intensity != 0) "Override intensity not copied: only Rescale in cd is"
+	else AlecLightConverter_noteIf r (v.override_intensity != 0) "Override intensity not copied: only Rescale in cd is"
 	r.radius = if v.override_shape and v.shape == 3 then v.diameter / 2.0 else 0.0
-	AlecLight_noteIf r (v.override_shape and v.shape != 3) "Override shape other than sphere not copied"
-	AlecLight_noteIf r (not v.area_speculars) "Area speculars off not copied"
-	AlecLight_noteIf r (v.rotation_X != 0 or v.rotation_Y != 0 or v.rotation_Z != 0) "IES rotations baked into the node"
+	AlecLightConverter_noteIf r (v.override_shape and v.shape != 3) "Override shape other than sphere not copied"
+	AlecLightConverter_noteIf r (not v.area_speculars) "Area speculars off not copied"
+	AlecLightConverter_noteIf r (v.rotation_X != 0 or v.rotation_Y != 0 or v.rotation_Z != 0) "IES rotations baked into the node"
 	r.diffuse = if v.affect_diffuse then v.diffuse_contribution else 0.0
 	r.specular = if v.affect_specular then v.specular_contribution else 0.0
 	r.volume = if v.affect_atmospherics then v.atmospherics_contribution else 0.0
 	r.castShadows = v.cast_shadows
-	AlecLight_readDecay r v
+	AlecLightConverter_readDecay r v
 	r
 )
 
 -- standard lights
 
-fn AlecLight_readStandard node =
+fn AlecLightConverter_readStandard node =
 (
 	local v = node.baseObject
 	local spot = classOf v == targetSpot or classOf v == freeSpot
-	local r = AlecLight_Rec kind:(if spot then #spot else #distant) label:((classOf v) as string)
+	local r = AlecLightConverter_Rec kind:(if spot then #spot else #distant) label:((classOf v) as string)
 	r.enabled = v.enabled
 	r.color = v.rgb
 	r.gain = v.multiplier
@@ -386,7 +386,7 @@ fn AlecLight_readStandard node =
 	r.farOn = v.useFarAtten
 	r.farStart = v.farAttenStart
 	r.farEnd = v.farAttenEnd
-	AlecLight_noteIf r (r.nearOn or r.farOn) "Near/Far Attenuation: the Max curve differs from Arnold's decay"
+	AlecLightConverter_noteIf r (r.nearOn or r.farOn) "Near/Far Attenuation: the Max curve differs from Arnold's decay"
 	r.diffuse = if v.affectDiffuse then 1.0 else 0.0
 	r.specular = if v.affectSpecular then 1.0 else 0.0
 	r.castShadows = v.castShadows
@@ -395,22 +395,22 @@ fn AlecLight_readStandard node =
 	if classOf v.shadowGenerator == VRayShadow then
 	(
 		if spot and v.shadowGenerator.areaShadow do
-			if v.shadowGenerator.areaShadowType == AlecLight_areaSphere then r.radius = v.shadowGenerator.usize
-			else AlecLight_note r "VRayShadow Box area shadow not copied"
+			if v.shadowGenerator.areaShadowType == AlecLightConverter_areaSphere then r.radius = v.shadowGenerator.usize
+			else AlecLightConverter_note r "VRayShadow Box area shadow not copied"
 		if not spot and v.shadowGenerator.areaShadow do
 		(
 			r.angle = 0.52
-			AlecLight_note r "VRayShadow area size not copied: Angle is Arnold's default 0.52"
+			AlecLightConverter_note r "VRayShadow area size not copied: Angle is Arnold's default 0.52"
 		)
 	)
-	else AlecLight_note r ("shadow generator " + (classOf v.shadowGenerator) as string + " not read")
+	else AlecLightConverter_note r ("shadow generator " + (classOf v.shadowGenerator) as string + " not read")
 	if spot then
 	(
 		-- an Arnold spot needs a surface to emit. Max: albedo x multiplier x (radius / distance)^2, Arnold: albedo x gain x (radius / distance)^2
 		if r.radius <= 0 do r.radius = 1.0
 		local decayRadius = if v.attenDecay == 3 then v.decayRadius else 1.0
 		r.gain = v.multiplier * (decayRadius / r.radius) ^ 2
-		AlecLight_noteIf r (v.attenDecay != 3) "no Inverse Square decay on the source: Arnold always decays, set the intensity by hand"
+		AlecLightConverter_noteIf r (v.attenDecay != 3) "no Inverse Square decay on the source: Arnold always decays, set the intensity by hand"
 	)
 	-- Max: albedo x multiplier. Arnold: albedo x gain / pi. Normalize on keeps the Angle from changing the brightness
 	else
@@ -418,18 +418,18 @@ fn AlecLight_readStandard node =
 		r.gain = v.multiplier * pi
 		r.normalize = true
 	)
-	AlecLight_noteIf r (v.excludeList != undefined and v.excludeList.count > 0 or v.includeList != undefined and v.includeList.count > 0) "include/exclude list not copied: Arnold_Light has none"
+	AlecLightConverter_noteIf r (v.excludeList != undefined and v.excludeList.count > 0 or v.includeList != undefined and v.includeList.count > 0) "include/exclude list not copied: Arnold_Light has none"
 	r
 )
 
-fn AlecLight_read node =
+fn AlecLightConverter_read node =
 (
 	local c = classOf node.baseObject
 	case c of
 	(
-		Arnold_Light: AlecLight_readArnold node
-		VRayLight: AlecLight_readVRay node
-		VRayIES: AlecLight_readIES node
-		default: AlecLight_readStandard node
+		Arnold_Light: AlecLightConverter_readArnold node
+		VRayLight: AlecLightConverter_readVRay node
+		VRayIES: AlecLightConverter_readIES node
+		default: AlecLightConverter_readStandard node
 	)
 )
