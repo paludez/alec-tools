@@ -70,6 +70,16 @@ fn AlecTools_showPickTag text hint:"right click or Esc = cancel" = (python.impor
 
 fn AlecTools_hidePickTag = (python.import "AlecTools_caddy").hide_pick_tag()
 
+-- a short message in the viewport (2 s)
+fn AlecTools_hint text = (python.import "AlecTools_caddy").show_hint text
+
+-- true when something is selected; else shows "Select objects first" for 2 s
+fn AlecTools_hasSelection =
+(
+	if selection.count == 0 do AlecTools_hint "Select objects first"
+	selection.count > 0
+)
+
 -- runs f (a function that picks) with the tag text shown, and takes the tag away after it, also when f stops with an error
 fn AlecTools_withPickTag text f hint:"right click or Esc = cancel" =
 (

@@ -3,8 +3,9 @@
 --   AlecTools_beginOverlayTool AlecX_draw ctrlAction ... AlecTools_endOverlayTool() (lib/overlayTool.ms, never the callback directly)
 -- The overlay is filled when something changes, not on every redraw. Lengths are written with units.formatValue (scene units).
 
--- boxes = #(bottom 4 corners, top 4 corners), lines = #(p1, p2), labels = #(point, text), #(point, text, pixel shift) or #(point, text, pixel shift, color)
-struct AlecTools_Overlay (boxes = #(), lines = #(), labels = #(), boxColor = green, lineColor = yellow, textColor = yellow)
+-- boxes = #(bottom 4 corners, top 4 corners), lines = #(p1, p2), labels = #(point, text), #(point, text, pixel shift) or #(point, text, pixel shift, color),
+-- points = world points drawn as markers that keep their size on screen, on top of the geometry (a pivot sits inside its object)
+struct AlecTools_Overlay (boxes = #(), lines = #(), labels = #(), points = #(), boxColor = green, lineColor = yellow, textColor = yellow, pointColor = yellow, pointMarker = #bigBox)
 
 -- the box lo..hi of frame, as world corners
 fn AlecTools_addBox ov lo hi frame =
@@ -44,6 +45,7 @@ fn AlecTools_drawOverlay ov =
 	)
 	gw.setColor #line ov.lineColor
 	for l in ov.lines do gw.polyline l false
+	for p in ov.points do gw.hMarker (gw.hTransPoint p) (ov.pointMarker) color:(ov.pointColor)
 	for t in ov.labels do AlecTools_drawLabel t[1] t[2] (if t.count > 3 then t[4] else ov.textColor) (if t.count > 2 then t[3] else [0, 0, 0])
 	gw.enlargeUpdateRect #whole
 	gw.updateScreen()

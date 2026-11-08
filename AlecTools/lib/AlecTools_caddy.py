@@ -88,6 +88,11 @@ OBJECT_NAME = "AlecToolsCaddy"
 # pixels between the chips of a row
 CHIP_GAP = 2
 ESC_WAIT = 2.0
+# how long a hint (show_hint) stays in the viewport
+HINT_MS = 2000
+VK_RETURN = 0x0D
+# how often the Enter watcher (Caddy.ENTER_WATCH) reads the key
+ENTER_MS = 50
 VK_ESCAPE = 0x1B
 # the Windows keys of the modifiers and what Qt calls them
 VK_MODIFIERS = {0x10: QtCore.Qt.ShiftModifier, 0x11: QtCore.Qt.ControlModifier, 0x12: QtCore.Qt.AltModifier}
@@ -645,6 +650,11 @@ def button_down(vk):
 # no MAXScript from a Qt timer). An accepting click is no selection: the selection is put back as it was when the caddy opened,
 # before ok(). Neither stops Max's own handling of the click (the quad menu of a right click in a viewport)
 class ViewportClicks:
+    # a right click on the caddy goes to right_on_caddy below, not to Caddy.mousePressEvent
+    RIGHT_CLICK_CANCELS = False
+    # True while the caddy runs a pick in a viewport: those clicks belong to the pick
+    paused = False
+
     def showEvent(self, event):
         super().showEvent(event)
         self.selection = list(rt.getCurrentSelection())
@@ -663,6 +673,11 @@ class ViewportClicks:
 
     # pure Python, from the timer: notes a new click, then posts the event once both buttons are up
     def watch_clicks(self):
+        if self.paused:
+            self.was_down = {vk: button_down(vk) for vk in self.was_down}
+            self.click = None
+            self.settle = 0
+            return
         fresh = {vk: button_down(vk) and not self.was_down[vk] for vk in self.was_down}
         self.was_down = {vk: button_down(vk) for vk in self.was_down}
         if self.click is None and fresh[VK_RBUTTON]:
@@ -679,6 +694,8 @@ class ViewportClicks:
 
     # the focus went to another window: a button down there is the click; without one (Alt+Tab) the caddy stays
     def clicked_away(self):
+        if self.paused:
+            return
         if self.click is None and button_down(VK_RBUTTON):
             self.click = "cancel"
         elif self.click is None and button_down(VK_LBUTTON):
@@ -735,6 +752,10 @@ class HelpIcon(QtWidgets.QLabel):
         self.dim.setOpacity(HELP_ICON_DIM)
         self.setGraphicsEffect(self.dim)
 
+    # a click shows the tooltip at once, next to the icon
+    def mousePressEvent(self, event):
+        QtWidgets.QToolTip.showText(event.globalPosition().toPoint(), self.toolTip(), self)
+
     def enterEvent(self, event):
         self.dim.setOpacity(1.0)
         super().enterEvent(event)
@@ -752,6 +773,12 @@ class Caddy(QtWidgets.QFrame):
     KEY_TOGGLES = False
     # the letters a subclass takes itself when typed without a modifier (Grab's X, Y, Z): never a shortcut of another caddy there
     OWN_KEYS = ""
+    # True in a subclass whose tool keeps the keyboard in a viewport (a pick, a mouse tool): Enter pressed there runs ok() too
+    ENTER_WATCH = False
+    # a right click on an empty part of the caddy, or on a button, cancels
+    RIGHT_CLICK_CANCELS = True
+    # what the Enter watcher posts to accept
+    ACCEPT_EVENT = QtCore.QEvent.Type(QtCore.QEvent.registerEventType())
 
     # section: the caddy's name in AlecTools.ini (where it was left) and in AlecTools_caddyOpen.
     # OK and Cancel are buttons at the bottom (ok_text / cancel_text for other words, e.g. Start).
@@ -958,6 +985,30 @@ class Caddy(QtWidgets.QFrame):
 
     def showEvent(self, event):
         rt.AlecTools_caddyOpen = self.section
+        if self.ENTER_WATCH:
+            self.enter_was_down = button_down(VK_RETURN)
+            self.enter_timer = QtCore.QTimer(self)
+            self.enter_timer.timeout.connect(self.check_enter)
+            self.enter_timer.start(ENTER_MS)
+
+    # a new Enter while the Max window is the active one (a viewport has the keyboard); the caddy takes its own Enter as a key.
+    # Only Python here: the accept runs from the posted event
+    def check_enter(self):
+        down = button_down(VK_RETURN)
+        fresh = down and not self.enter_was_down
+        self.enter_was_down = down
+        if fresh and QtWidgets.QApplication.activeWindow() == GetQMaxMainWindow():
+            self.enter_timer.stop()
+            QtCore.QCoreApplication.postEvent(self, QtCore.QEvent(self.ACCEPT_EVENT))
+
+    def event(self, event):
+        if event.type() != self.ACCEPT_EVENT:
+            return super().event(event)
+        if self.isVisible():
+            without_escape(self.ok)()
+        if self.isVisible():
+            self.enter_timer.start(ENTER_MS)
+        return True
 
     def closeEvent(self, event):
         if rt.AlecTools_caddyOpen == self.section:
@@ -975,6 +1026,9 @@ class Caddy(QtWidgets.QFrame):
 
     # dragged by any empty part of the caddy
     def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.RightButton and self.RIGHT_CLICK_CANCELS:
+            self.cancel()
+            return
         self.drag = event.globalPosition().toPoint() - self.pos()
 
     def mouseMoveEvent(self, event):
@@ -1090,11 +1144,23 @@ class PickTag(QtWidgets.QFrame):
 # A tag still there is replaced. hint is the second line (a loop that ends with a right click says "done")
 def show_pick_tag(text, hint="right click or Esc = cancel"):
     hide_pick_tag()
-    tag = PickTag(text + "\n" + hint)
+    tag = PickTag(text + ("\n" + hint if hint else ""))
     tag.adjustSize()
     view = view_rect()
     tag.move(view.center().x() - tag.width() // 2, view.top() + PICK_TAG_TOP)
     tag.show()
+
+
+# a short message in the viewport for HINT_MS (e.g. "Select objects first"), then it goes; pure Qt, so a timer may close it
+def show_hint(text):
+    show_pick_tag(text, hint="")
+    QtCore.QTimer.singleShot(HINT_MS, lambda: hide_hint(text))
+
+
+def hide_hint(text):
+    for tag in GetQMaxMainWindow().findChildren(QtWidgets.QFrame, PICK_TAG_NAME):
+        if tag.findChild(QtWidgets.QLabel).text() == text:
+            tag.close()
 
 
 def hide_pick_tag():

@@ -68,7 +68,7 @@ COORD_CENTER = {
 }
 
 # macros that open their caddy when they read AlecTools_wantsOptions(): right click on their button
-WITH_OPTIONS = {"MeasureAngle", "BBox", "Distribute", "UniversalConverter", "LightConverter"}
+WITH_OPTIONS = {"UniversalConverter", "LightConverter"}
 
 # entries that are one button opening a drop-down list of macros; an item that opens its caddy on a right click opens it here too
 MENUS = {

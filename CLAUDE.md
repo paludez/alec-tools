@@ -26,7 +26,7 @@ tools/build_mzp.ps1   builds dist/AlecTools.mzp (build.bat)
 
 - This PC: live. `<userStartupScripts>\AlecTools_Load.ms` loads from the folder in `<userScripts>\AlecTools.root.txt` (the `AlecTools` folder here). After editing, the user presses the "Reload Alec Tools" macro.
 - Work laptop (no admin): the user downloads `AlecTools.mzp` from the private GitHub repo `paludez/alec-tools` and drags it into Max.
-- A commit that goes to GitHub comes with a fresh mzp: commit the code, run `tools/build_mzp.ps1` on the clean tree (it copies the mzp to the repo root), commit the mzp, push. Otherwise build the mzp only when asked.
+- Commit, mzp build and push happen only through the user's `/release` skill.
 - Never copy files into `usermacros`, never hardcode `getDir #userMacros` or `D:` paths. Reach files with `AlecTools_path "tools/x.ms"`. Only exception: `AlecTools_removeSavedMacros` in the core.
 
 ## Rules for code

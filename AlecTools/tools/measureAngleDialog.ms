@@ -3,7 +3,7 @@
 -- Faces: hover, the face lights up, a click takes it; 2 faces, the angle between the faces (not their normals) on the side of each click.
 -- A third click starts a new measure. Plane: 3D, World XY / XZ / YZ, through 3 clicked points, or the plane of a clicked face;
 -- with a plane, edges are projected on it and faces are cut by it, so the angle is the one seen looking straight at that plane.
--- Ctrl switches the plane on and off, as in the plain command. Right click or Esc ends.
+-- Ctrl switches the plane on and off. Right click ends and closes the caddy, Esc ends the measure only.
 
 -- where two surfaces meet (#(pos, normal) each): the line where their planes cross, and on it the foot of each clicked point;
 -- each foot-to-point arm lies in its face, square to that line, so the angle between the arms is the angle between the faces,
@@ -237,6 +237,7 @@ tool AlecMeasureAngle_pickTool
 		AlecMeasureAngle_overlay = undefined
 		AlecMeasureAngle_freePick()
 		AlecTools_endOverlayTool()
+		AlecMeasureAngle_ended()
 	)
 )
 
@@ -329,7 +330,17 @@ fn AlecMeasureAngle_runPick mode normal label flat =
 	startTool AlecMeasureAngle_pickTool prompt:(AlecMeasureAngle_pickPrompt())
 )
 
--- the caddy's Start (tools/measureAngleCaddy.py): what is 1 Points, 2 Edges, 3 Faces; plane is 1 3D, 2 World XY, 3 World XZ, 4 World YZ, 5 3 points, 6 Pick face
+-- stops whatever measurement is running (the caddy's options changed, or it closes); a tool that is not running is left alone
+fn AlecMeasureAngle_stop =
+(
+	AlecMeasureAngle_stopping = true
+	stopTool AlecMeasureAngle_tool
+	stopTool AlecMeasureAngle_pickTool
+	stopTool AlecMeasureAngle_planeTool
+	AlecMeasureAngle_stopping = false
+)
+
+-- the caddy starts the measurement (tools/measureAngleCaddy.py): what is 1 Points, 2 Edges, 3 Faces; plane is 1 3D, 2 World XY, 3 World XZ, 4 World YZ, 5 3 points, 6 Pick face
 fn AlecMeasureAngle_dialogStart what plane =
 (
 	local normal = case plane of
@@ -340,7 +351,8 @@ fn AlecMeasureAngle_dialogStart what plane =
 		6: AlecMeasureAngle_pickPlane #face
 		default: [0, 0, 1]
 	)
-	if normal != undefined do
+	if normal == undefined then AlecMeasureAngle_ended()
+	else
 	(
 		local label = #("World XY", "World XY", "World XZ", "World YZ", "3 points plane", "face plane")[plane]
 		local flat = plane != 1
@@ -351,4 +363,11 @@ fn AlecMeasureAngle_dialogStart what plane =
 			3: AlecMeasureAngle_runPick #faces normal label flat
 		)
 	)
+)
+
+-- an option changed: the measurement starts again, as if it had been started anew
+fn AlecMeasureAngle_restart what plane =
+(
+	AlecMeasureAngle_stop()
+	AlecMeasureAngle_dialogStart what plane
 )

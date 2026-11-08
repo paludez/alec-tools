@@ -1,25 +1,20 @@
-"""Mid Between caddy, opened by AlecMidBetween_run (tools/midBetween.ms) every time the macro runs, just before the picking starts; it
-stays open while the points are picked. No OK / Cancel, the keyboard and the mouse decide (like Grab):
+"""Mid Between caddy, opened by AlecMidBetween_run (tools/midBetween.ms) every time the tool starts, just before the picking starts; it
+stays open while the points are picked:
 - left clicks in a viewport pick (the pickPoint / pickObject loop of tools/midBetween.ms runs while the caddy is open);
-- Enter moves and closes (AlecMidBetween_accept). On the caddy it comes as a key; in a viewport it goes to Max, so a timer reads it from
-  Windows and posts an event, and the accept runs from that event (a timer runs no MAXScript: docs/max-verified.md);
-- a right click in a viewport ends the pick and the loop closes the caddy, a right click on the caddy closes it, and so does the macro's
-  button or shortcut again (AlecTools_toggleTool): all cancel (AlecMidBetween_end), nothing moves;
+- OK, or Enter (also in a viewport: Caddy.ENTER_WATCH), moves and closes (AlecMidBetween_accept);
+- Cancel, a right click in a viewport (the loop closes the caddy) or on the caddy, and the macro's button or shortcut again cancel
+  (AlecMidBetween_end), nothing moves;
+- Reset puts the options back to their defaults;
 - every option applies at once (AlecMidBetween_change) and the preview follows; the pick waiting in the viewport goes on, or starts
   again when the kind of pick changes.
+- the selection follows the points live; OK keeps it, every cancel puts it back.
 Esc does nothing.
 """
 
-import ctypes
-
 from pymxs import runtime as rt
-from PySide6 import QtCore, QtWidgets
-from qtmax import GetQMaxMainWindow
+from PySide6 import QtWidgets
 
 import AlecTools_caddy
-
-VK_RETURN = 0x0D
-ENTER_MS = 50
 
 # (text, id, tooltip)
 PICK = [("Object pivots", 1, "Left click objects in a viewport: the pivot of each one is a point.\n"
@@ -31,21 +26,18 @@ MIDDLE = [("Average", 1, "The average of the picked points: every point weighs t
 CENTER = [("Average", 1, "The average of the pivots of the selected objects,\nor of the selected vertices (edges and faces by their vertices)."),
           ("Bounding box", 2, "The center of the tight bounding box of the selected objects,\nor of the selected vertices.")]
 
-HELP = ("Mid Between moves the selection so its center lands in the middle of the points you pick.\n"
-        "What moves: the selected objects (a selected child goes with its selected parent), or at a sub-object level\n"
-        "the selected vertices, edges or faces of an Editable Poly or Edit Poly.\n"
-        "\n"
-        "Left click in a viewport: pick a point (object pivots or snap points, see Pick).\n"
-        "With nothing selected, the first click picks the object to move.\n"
-        "Orange boxes: the picked points. Red box and line: where the center of the selection will land.\n"
-        "\n"
-        "Enter: move and close (one undo step).\n"
-        "Right click (in a viewport or on this caddy), or the Mid Between button or shortcut again: cancel, nothing moves.\n"
-        "Every option applies at once and the picking goes on. Esc does nothing.")
-
-
-def enter_down():
-    return bool(ctypes.windll.user32.GetAsyncKeyState(VK_RETURN) & 0x8000)
+HELP = "\n".join([
+    "Mid Between moves the selection so its center lands in the middle of the points you pick.",
+    "What moves: the selected objects (a selected child goes with its selected parent), or at a",
+    "    sub-object level the selected vertices, edges or faces of an Editable Poly or Edit Poly.",
+    "Left click in a viewport: picks a point (object pivots or snap points, see Pick).",
+    "Yellow markers: the picked points. The selection moves live as you pick.",
+    "Pick, Middle of points, Selection center, Move along: apply at once, the picking goes on.",
+    "Clear points: drops the points picked so far.",
+    "Reset: every option back to its default.",
+    "OK, or Enter: keeps the move, one undo step.",
+    "Cancel, a right click, or the button / shortcut again: the selection goes back.",
+])
 
 
 def tip_label(text, tip):
@@ -55,11 +47,11 @@ def tip_label(text, tip):
 
 
 class MidBetweenCaddy(AlecTools_caddy.Caddy):
-    # what the Enter watcher posts to accept
-    ACCEPT_EVENT = QtCore.QEvent.Type(QtCore.QEvent.registerEventType())
+    # the picking keeps the keyboard in the viewport
+    ENTER_WATCH = True
 
     def __init__(self):
-        super().__init__("MidBetween", "Mid Between", "", "", buttons=False)
+        super().__init__("MidBetween", "Mid Between", "OK: move the selection", "Cancel")
 
     # a row of joined buttons with a tooltip on its label and one on each button
     def choice(self, label, tip, items, checked, on_change):
@@ -82,6 +74,7 @@ class MidBetweenCaddy(AlecTools_caddy.Caddy):
         for axis, button in zip("XYZ", self.axes):
             button.setToolTip("Move along world {}: pressed = yes".format(axis))
         self.add_button("", "Clear points", "Drop the points picked so far; the picking goes on from nothing.", self.clear)
+        self.add_footer_button("reset", "Reset", "Back to the defaults", self.reset)
         self.add_help(HELP)
 
     def store(self):
@@ -91,36 +84,14 @@ class MidBetweenCaddy(AlecTools_caddy.Caddy):
     def clear(self):
         rt.AlecMidBetween_clear()
 
-    def showEvent(self, event):
-        super().showEvent(event)
-        self.enter_was_down = enter_down()
-        self.enter_timer = QtCore.QTimer(self)
-        self.enter_timer.timeout.connect(self.check_enter)
-        self.enter_timer.start(ENTER_MS)
-
-    # a new Enter while the Max window is the active one (a viewport has the keyboard); the caddy takes its own Enter as a key.
-    # Only Python here: the accept runs from the posted event
-    def check_enter(self):
-        down = enter_down()
-        fresh = down and not self.enter_was_down
-        self.enter_was_down = down
-        if fresh and QtWidgets.QApplication.activeWindow() == GetQMaxMainWindow():
-            self.enter_timer.stop()
-            QtCore.QCoreApplication.postEvent(self, QtCore.QEvent(self.ACCEPT_EVENT))
-
-    def event(self, event):
-        if event.type() == self.ACCEPT_EVENT:
-            if self.isVisible():
-                AlecTools_caddy.without_escape(self.ok)()
-            return True
-        return super().event(event)
-
-    # a right click anywhere on the caddy (its buttons pass it on) cancels; a left press drags it
-    def mousePressEvent(self, event):
-        if event.button() == QtCore.Qt.RightButton:
-            self.cancel()
-        else:
-            super().mousePressEvent(event)
+    def reset(self):
+        d = rt.AlecMidBetween_Settings()
+        self.pick.button(1 if d.fromObjects else 2).setChecked(True)
+        self.middle.button(2 if d.targetBounds else 1).setChecked(True)
+        self.center.button(2 if d.bounds else 1).setChecked(True)
+        for b, v in zip(self.axes, [d.x, d.y, d.z]):
+            b.setChecked(v)
+        self.store()
 
     def ok(self):
         rt.AlecMidBetween_accept()

@@ -1,7 +1,7 @@
 -- Distribute: the selected objects are spread along one axis, with equal steps between a reference point of each (Positions)
 -- or with equal space between their bounding boxes (Gaps).
--- Click: distributes at once with the last settings. Shift + click (or a toolbar right click) opens the caddy (tools/distributeCaddy.py): the objects move live as a preview with undo off, every change starts again
--- from where they were; OK moves them again in one undo step, Cancel puts them back.
+-- Every run opens the caddy (tools/distributeCaddy.py): the objects move live as a preview with undo off, every change starts again
+-- from where they were; OK (button, Enter or a left click in a viewport) moves them again in one undo step, Cancel (button, right click) puts them back.
 -- The step (or gap) starts at the value that keeps the two ends in place; a typed value is used as a fixed step until the mode, axis or reference changes, or Auto.
 -- Axes: World, or Local = the axes (rotation without scale) of any object picked for them, or else of the anchor; with neither, Local uses the world.
 -- The anchor is picked in the caddy among the objects: it stays in place and the others go on both sides of it; without one the lowest object stays.
@@ -409,34 +409,22 @@ fn AlecDistribute_pickAxes =
 
 -- run
 
--- without the caddy: the settings last used in it, no anchor, the two ends stay in place; one undo step
-fn AlecDistribute_applyDirect sess =
-(
-	undo "Distribute" on (AlecDistribute_apply sess)
-	redrawViews()
-	displayTempPrompt ("Distribute: " + sess.sources.count as string + " objects distributed") 3000
-)
-
 -- a caddy that is already open closes first (its objects go back), then the tool starts again from the current selection;
--- showCaddy:false distributes at once
-fn AlecDistribute_run showCaddy:true =
+-- with nothing selected only the hint shows
+fn AlecDistribute_run =
 (
 	AlecTools_closeCaddy()
-	local sources = AlecDistribute_sources (selection as array)
-	if selection.count == 0 then
-		displayTempPrompt "Distribute: select something first" 3000
-	else if sources.count < 2 then
-		displayTempPrompt "Distribute: select at least 2 objects" 3000
-	else
+	if AlecTools_hasSelection() do
 	(
-		local sess = AlecDistribute_newSession (AlecTools_recallSettings "Distribute" (AlecDistribute_Settings())) sources
-		if showCaddy then
+		local sources = AlecDistribute_sources (selection as array)
+		if sources.count < 2 then
+			displayTempPrompt "Distribute: select at least 2 objects" 3000
+		else
 		(
-			AlecDistribute_active = sess
+			AlecDistribute_active = AlecDistribute_newSession (AlecTools_recallSettings "Distribute" (AlecDistribute_Settings())) sources
 			AlecDistribute_updatePreview AlecDistribute_active
 			AlecTools_beginOverlayTool AlecDistribute_draw undefined
 			python.ExecuteFile (AlecTools_path "tools/distributeCaddy.py")
 		)
-		else AlecDistribute_applyDirect sess
 	)
 )

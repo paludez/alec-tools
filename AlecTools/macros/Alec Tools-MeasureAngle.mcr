@@ -1,8 +1,8 @@
 macroScript MeasureAngle
 category:"Alec Tools"
-toolTip:"Measure Angle - 4 points for 2 lines (Ctrl: angle in World XY), the angle follows the mouse; right click ends and clears. Shift+Click or toolbar right click: caddy (edges, faces, planes)"
+toolTip:"Measure Angle - 4 points for 2 lines (Ctrl: plane on/off) with a caddy (points, edges, faces, planes); the angle follows the mouse, right click or Enter ends"
 buttonText:"Measure Angle"
 iconName:":/Icons/MainUI/Protractor_24.png"
 (
-	on execute do AlecTools_runCaddyTool "MeasureAngle" "measureAngle.ms" "AlecMeasureAngle_run"
+	on execute do AlecTools_toggleTool "MeasureAngle" "measureAngle.ms" "AlecMeasureAngle_run()"
 )

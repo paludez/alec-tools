@@ -5,10 +5,20 @@
 -- A fifth click starts a new measure from that point.
 -- Ctrl switches the plane on and off (World XY unless the caddy chose another): the lines are projected on that plane, through
 -- the first point, and the angle is the one seen looking straight at it, e.g. from the top view for World XY.
--- Shift + click on the button (or a toolbar right click) opens the caddy (tools/measureAngleCaddy.py): edges and faces, and other planes.
--- Angles are written both ways (a and 180 - a), since two lines make both. Right click or Esc ends and clears the viewports.
+-- Every run opens the caddy (tools/measureAngleCaddy.py: what to measure, which plane) and starts measuring at once; changing an option
+-- starts the measurement again. With nothing selected only the hint "Select objects first" shows.
+-- Angles are written both ways (a and 180 - a), since two lines make both. Right click ends and clears the viewports and closes the caddy; Esc ends only the measure.
 
 global AlecMeasureAngle_overlay = undefined
+
+-- true while the tools are stopped on purpose (a restart, the caddy closing): that is no end of the measurement
+global AlecMeasureAngle_stopping = false
+
+-- a measurement ended by a right click closes the caddy; Esc must not (docs/max-verified.md: Esc and Qt), it only ends the measure
+fn AlecMeasureAngle_ended =
+(
+	if not AlecMeasureAngle_stopping and not (python.import "AlecTools_caddy").escape_down() do AlecTools_closeCaddy()
+)
 
 fn AlecMeasureAngle_draw = if AlecMeasureAngle_overlay != undefined do AlecTools_drawOverlay AlecMeasureAngle_overlay
 
@@ -183,13 +193,13 @@ tool AlecMeasureAngle_tool
 	(
 		AlecMeasureAngle_overlay = undefined
 		AlecTools_endOverlayTool()
+		AlecMeasureAngle_ended()
 	)
 )
 
--- the plain button: 3D, Ctrl = World XY; the caddy passes its own plane, already on
 fn AlecMeasureAngle_pick = startTool AlecMeasureAngle_tool snap:#3D prompt:(AlecMeasureAngle_prompt())
 
-fn AlecMeasureAngle_start normal:[0, 0, 1] name:"World XY" flat:false =
+fn AlecMeasureAngle_start normal name flat =
 (
 	AlecMeasureAngle_normal = normal
 	AlecMeasureAngle_planeName = name
@@ -198,6 +208,14 @@ fn AlecMeasureAngle_start normal:[0, 0, 1] name:"World XY" flat:false =
 	AlecTools_withSnaps AlecMeasureAngle_pick
 )
 
--- the macro's entry: the caddy (Shift or a toolbar right click) or the plain command
-fn AlecMeasureAngle_run showCaddy:false =
-	if showCaddy then AlecTools_runPython "measureAngleCaddy.py" else AlecMeasureAngle_start()
+-- the macro's entry: the caddy opens, then the measurement starts with its saved choices (it returns when the measurement ends)
+fn AlecMeasureAngle_run =
+(
+	AlecTools_closeCaddy()
+	if AlecTools_hasSelection() do
+	(
+		AlecTools_runPython "measureAngleCaddy.py"
+		local saved = AlecTools_recallSettings "MeasureAngle" #(2, 1)
+		AlecMeasureAngle_dialogStart saved[1] saved[2]
+	)
+)

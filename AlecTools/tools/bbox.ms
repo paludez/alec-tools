@@ -1,6 +1,6 @@
 -- BBox: box cages around the selected objects, drawn as boxes (Display as Box) and not rendered.
--- Click: the cages at once with the last settings. Shift + click (or a toolbar right click) opens the caddy (tools/bboxCaddy.py): the cages are a preview
--- rebuilt with undo off on every change; OK makes them again in one undo step, Cancel drops them.
+-- Every run opens the caddy (tools/bboxCaddy.py): the cages are a preview rebuilt with undo off on every change; OK (button, Enter or a left
+-- click in a viewport) makes them again in one undo step, Cancel (button, right click) drops them. With nothing selected: the hint "Select objects first".
 -- One cage for the whole selection, or one per object (Each). World: along the world axes. Local: in the axes of an object (rotation without scale):
 -- its own with Each, the first one combined; an object picked in the caddy (the anchor) gives its axes to every cage instead.
 -- Sizes come from nodeGetBoundingBox in the frame of the cage, which is tight on the evaluated geometry.
@@ -250,50 +250,22 @@ fn AlecBBox_clearAnchor =
 
 -- run
 
--- what can be clicked when nothing usable is selected: a closed group is picked through its head
-fn AlecBBox_isPickable node = AlecTools_isMeasurable node or AlecTools_isClosedHead node
-
-fn AlecBBox_pickSource = pickObject prompt:"BBox: pick an object (geometry, shape or closed group), right click or Esc = cancel" filter:AlecBBox_isPickable select:true
-
--- the sources of the selection; with none, waits for the user to click an object, with a tag in the viewport saying so (right click or Esc gives up)
-fn AlecBBox_waitForSources =
-(
-	local sources = AlecBBox_sources (selection as array)
-	if sources.count == 0 do
-	(
-		AlecTools_withPickTag "BBox: click an object" AlecBBox_pickSource
-		sources = AlecBBox_sources (selection as array)
-	)
-	sources
-)
-
--- without the caddy: the cages with the settings last used in it, in one undo step
-fn AlecBBox_applyDirect sess =
-(
-	local cages = undo "BBox" on (AlecBBox_build sess)
-	AlecBBox_watchLayer sess
-	redrawViews()
-	displayTempPrompt ("BBox: " + cages.count as string + (if cages.count == 1 then " cage made" else " cages made")) 3000
-)
-
 -- a caddy that is already open closes first (its preview goes with it), then the tool starts again from the current selection;
--- showCaddy:false makes the cages at once
-fn AlecBBox_run showCaddy:true =
+-- with nothing selected only the hint shows
+fn AlecBBox_run =
 (
 	AlecTools_closeCaddy()
-	local sources = AlecBBox_waitForSources()
-	if sources.count == 0 then
-		displayTempPrompt "BBox: select something first" 3000
-	else
+	if AlecTools_hasSelection() do
 	(
-		local sess = AlecBBox_Session settings:(AlecTools_recallSettings "BBox" (AlecBBox_Settings())) sources:sources \
-			hadLayer:(LayerManager.getLayerFromName "BBox helpers" != undefined)
-		if showCaddy then
+		local sources = AlecBBox_sources (selection as array)
+		if sources.count == 0 then
+			displayTempPrompt "BBox: nothing selected can be measured" 3000
+		else
 		(
-			AlecBBox_active = sess
+			AlecBBox_active = AlecBBox_Session settings:(AlecTools_recallSettings "BBox" (AlecBBox_Settings())) sources:sources \
+				hadLayer:(LayerManager.getLayerFromName "BBox helpers" != undefined)
 			AlecBBox_updatePreview AlecBBox_active
 			python.ExecuteFile (AlecTools_path "tools/bboxCaddy.py")
 		)
-		else AlecBBox_applyDirect sess
 	)
 )

@@ -1,4 +1,4 @@
-"""Distribute caddy (Shift + click on the button, or a toolbar right click), opened by AlecDistribute_run (tools/distribute.ms) once the
+"""Distribute caddy, opened by AlecDistribute_run (tools/distribute.ms) every time the tool starts, once the
 session and its preview are up. Every change goes to tools/distribute.ms (AlecDistribute_change, AlecDistribute_setStep, ...), which saves it and
 moves the preview again; when fewer than 2 objects are left the caddy closes. OK moves them in one undo step
 (AlecDistribute_accept), Cancel or closing puts them back (AlecDistribute_end).
@@ -34,12 +34,14 @@ HELP = "\n".join([
     "Blend rotations (needs an anchor): from the lowest object to the anchor to the highest.",
     "Show dimensions: the boxes, the line and the lengths in the viewports.",
     "Reset: every option back to its default.",
-    "OK, or Enter with no value being typed: moves the objects, in one undo step.",
-    "Cancel, or the button / shortcut again: puts them back.",
+    "OK, Enter with no value being typed, or a left click in a viewport: moves the objects, one undo step.",
+    "Cancel, a right click, or the button / shortcut again: puts them back.",
 ])
 
 
-class DistributeCaddy(AlecTools_caddy.Caddy):
+class DistributeCaddy(AlecTools_caddy.ViewportClicks, AlecTools_caddy.Caddy):
+    CLICK_AWAY = True
+    ENTER_WATCH = True
     # it has value boxes: the macro's shortcut pressed while typing still closes it
     KEY_TOGGLES = True
 
@@ -53,7 +55,7 @@ class DistributeCaddy(AlecTools_caddy.Caddy):
         self.axis = self.add_choice("Along", AXIS, s.axis, 3, lambda: self.store(refill=True))
         self.space = self.add_choice("Axes", SPACE, 2 if s.localAxes else 1, 2, lambda: self.store(refill=True))
         self.axes_of, self.clear_axes = self.add_pick("Axes of", "Pick the object whose axes Local takes", "Back to the axes of the anchor",
-                                                      lambda: self.update(rt.AlecDistribute_pickAxes()),
+                                                      lambda: self.pick(rt.AlecDistribute_pickAxes),
                                                       lambda: self.update(rt.AlecDistribute_setAxesOf(None)))
         self.reference = self.add_choice("Reference", POINTS, s.reference, 4, lambda: self.store(refill=True))
         self.step = self.add_value("Step", 0.0, 2, suffix, lambda: self.update(rt.AlecDistribute_setStep(self.step.value)), minimum=0.0, on_reset=self.auto_values)
@@ -61,7 +63,7 @@ class DistributeCaddy(AlecTools_caddy.Caddy):
         self.auto = self.add_button("", "Auto: keep the two ends in place", "Work the step and the gap out again", self.auto_values)
         self.anchor, self.clear_anchor = self.add_pick("Anchor", "Pick the anchor among the objects: it stays in place",
                                                        "No anchor: the lowest object stays in place",
-                                                       lambda: self.update(rt.AlecDistribute_pickAnchor()),
+                                                       lambda: self.pick(rt.AlecDistribute_pickAnchor),
                                                        lambda: self.update(rt.AlecDistribute_setAnchor(None)))
         self.align = self.add_toggles("Align on", ["X", "Y", "Z"], [s.alignX, s.alignY, s.alignZ], self.store)
         self.align_reference = self.add_choice("Align to", POINTS, s.alignReference, 4, self.store)
@@ -92,6 +94,13 @@ class DistributeCaddy(AlecTools_caddy.Caddy):
         for b in self.align_reference.buttons():
             b.setEnabled(has_anchor)
         self.blend.setEnabled(has_anchor)
+
+    # the clicks of a pick in a viewport are no OK / Cancel
+    def pick(self, run):
+        self.paused = True
+        enough = run()
+        self.paused = False
+        self.update(enough)
 
     def auto_values(self):
         self.update(rt.AlecDistribute_auto())
