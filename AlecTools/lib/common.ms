@@ -66,9 +66,12 @@ fn AlecTools_closeCaddy =
 
 -- a tag in the active viewport while a tool waits for a click. It is no caddy: showing it closes none, AlecTools_hidePickTag() removes
 -- only the tag, AlecTools_closeCaddy() removes it too. hint is the second line.
-fn AlecTools_showPickTag text hint:"right click or Esc = cancel" = (python.import "AlecTools_caddy").show_pick_tag text hint
+fn AlecTools_showPickTag text hint:"right click = cancel" = (python.import "AlecTools_caddy").show_pick_tag text hint
 
 fn AlecTools_hidePickTag = (python.import "AlecTools_caddy").hide_pick_tag()
+
+-- true while the mouse is over an open caddy; a mouse tool ignores its events then
+fn AlecTools_overCaddy = (python.import "AlecTools_caddy").over_caddy()
 
 -- a short message in the viewport (2 s)
 fn AlecTools_hint text = (python.import "AlecTools_caddy").show_hint text
@@ -81,7 +84,7 @@ fn AlecTools_hasSelection =
 )
 
 -- runs f (a function that picks) with the tag text shown, and takes the tag away after it, also when f stops with an error
-fn AlecTools_withPickTag text f hint:"right click or Esc = cancel" =
+fn AlecTools_withPickTag text f hint:"right click = cancel" =
 (
 	AlecTools_showPickTag text hint:hint
 	local result = try (f()) catch (AlecTools_hidePickTag(); throw())

@@ -2,7 +2,7 @@
 -- a distance in scene units (move), an angle in degrees (rotate, X then Y then Z), a percent (scale, 100 = unchanged), e.g. "-100",
 -- "15+28". Scale also has an XYZ field for the axes left empty. Scale always opens on XYZ, move and rotate on X.
 -- The selection changes live while typing (undo off), Enter or a left click in a viewport accepts as one undo step (the click selects
--- nothing), a right click or the shortcut again puts it back. Esc does nothing.
+-- nothing), a right click, Esc or the shortcut again puts it back.
 -- The axes follow Max's reference coordinate system (View, Screen, World, Parent, Local, Gimbal; Grid and Working Pivot use the world);
 -- rotate and scale follow Max's Use Center. Objects with a selected ancestor follow it; USD prims are left out.
 -- The preview runs with animate off and undo off, so a cancel leaves no keys; the accepted change is made with the user's Auto Key state, like Max's own Move.

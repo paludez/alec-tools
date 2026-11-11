@@ -4,7 +4,7 @@ editor's own right click menu gives the position); what takes the selected nodes
 them instead, and its button is highlighted with a tip saying what it does. Over a viewport it assigns a material to the selection. A
 button is off when its class is not installed, and maps are off over a viewport. The files buttons make a material from textures chosen
 in a dialog, wired by their file names; VRayBitmap and UberBitmap ask for their files too, with a node for each. Swap order turns round the inputs of the selected OSL
-Mix or CompTex. A click anywhere else or the macro run again closes it.
+Mix or CompTex. A click anywhere else, Esc or the macro run again closes it.
 """
 
 import importlib
@@ -61,7 +61,7 @@ HELP = "\n".join([
     "    yellow: they fill the empty slots of the selected material instead.",
     "Swap order (Slate only): swaps the two inputs of the selected OSL Mix or CompTex.",
     "Grey buttons: not installed, or not usable here; hover for why.",
-    "A click elsewhere, or the macro again: closes it.",
+    "Esc, a click elsewhere, or the macro again: closes it.",
 ])
 
 
@@ -100,7 +100,7 @@ def pick_folder():
     folders = AlecTools_caddy.map_folders()
     if len(folders) < 2:
         return folders[0] if folders else ""
-    menu = AlecTools_caddy.Menu(GetQMaxMainWindow())
+    menu = QtWidgets.QMenu(GetQMaxMainWindow())
     for folder in folders:
         menu.addAction(folder)
     chosen = menu.exec(QtGui.QCursor.pos())

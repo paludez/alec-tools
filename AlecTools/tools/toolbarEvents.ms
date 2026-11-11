@@ -1,6 +1,6 @@
 -- What tells the Alec Tools toolbar (AlecToolbar.py) to refresh its checked buttons and fields: Max's own node events (selection,
--- transform, geometry) and a unit change. No Qt timer: MAXScript run from a Qt timer crashed Max while Esc was held in a viewport,
--- and node events run from Max. Use Center has no event; the toolbar also refreshes when the mouse enters it.
+-- transform, geometry) and a unit change. No Qt timer:
+-- the events come from Max only when something changed. Use Center has no event; the toolbar also refreshes when the mouse enters it.
 
 global AlecToolbar_events = undefined
 

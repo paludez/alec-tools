@@ -3,8 +3,8 @@ per axis, styled like every text box of the tools (Max turns its shortcuts off f
 Tab and Shift+Tab go through the boxes, X, Y, Z jump to one (in Scale the same key again goes to XYZ). Scale opens on an XYZ box: it
 holds for every axis left empty, so X, Y, Z show its value until they are typed in. Every change transforms the selection as a preview
 (AlecGrab_preview). Enter or a left click away (in a viewport) accepts (AlecGrab_accept; the click selects nothing), a right click (in a
-viewport or on the caddy) or the macro's shortcut again puts it back (AlecGrab_end); see AlecTools_caddy.ViewportClicks. The shortcut of
-another caddy of the group accepts and opens that one (AlecTools_caddy.ToggleKey). Esc does nothing: it crashed Max. The help is the
+viewport or on the caddy), Esc or the macro's shortcut again puts it back (AlecGrab_end); see AlecTools_caddy.ViewportClicks. The shortcut of
+another caddy of the group accepts and opens that one (AlecTools_caddy.ToggleKey). The help is the
 info icon at the end of the row.
 """
 
@@ -37,7 +37,7 @@ def help_text(mode):
         "Enter: accept",
         "Left click in a viewport: accept (the click selects nothing)",
         "Right click (in a viewport or on the caddy): cancel",
-        "This tool's shortcut again: cancel",
+        "Esc, or this tool's shortcut again: cancel",
         "Shortcut of Grab, Rotate, Scale, Transform Popup or Create Popup: accept and open that one",
         "Axes: Max's reference coordinate system" + ("; center: Max's Use Center" if mode != "move" else ""),
     ])

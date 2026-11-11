@@ -10,8 +10,13 @@ global AlecTest_readFrom = fn readFrom logFile offset =
 	text
 )
 
+-- A tool still running (startTool) would hold the test until a right click: the Select command ends it. The user's scene is held,
+-- then the test runs in an empty scene (nothing of the user's is hit or changed); the user fetches the scene back when needed.
 global AlecTest_run = fn run testFile =
 (
+	max select
+	holdMaxFile()
+	resetMaxFile #noPrompt
 	AlecTools_reload()
 	local logFile = getDir #userScripts + "/AlecTools.listener.log"
 	local offset = if doesFileExist logFile then getFileSize logFile else 0

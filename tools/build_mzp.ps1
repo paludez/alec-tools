@@ -13,13 +13,7 @@ Copy-Item (Join-Path $root 'installer\*') $stage
 $leftovers = @(Get-ChildItem (Join-Path $stage 'AlecTools') -Recurse -Force | Where-Object { $_.Name -like 'AlecSettings-backup-*.zip' -or $_.Name -eq '__pycache__' })
 $leftovers | Where-Object { Test-Path $_.FullName } | Remove-Item -Recurse -Force
 
-$hash = ''
-$dirty = ''
-try {
-    $hash = (git -C $root rev-parse --short HEAD).Trim()
-    if (git -C $root status --porcelain) { $dirty = '+dirty' }
-} catch { $hash = 'nogit' }
-$ver = (Get-Date -Format 'yyyy-MM-dd HH:mm') + ' ' + $hash + $dirty
+$ver = Get-Date -Format 'yyyy-MM-dd HH:mm'
 Set-Content (Join-Path $stage 'AlecTools\version.txt') $ver -Encoding ascii
 
 # mzp = zip with mzp.run at the archive root

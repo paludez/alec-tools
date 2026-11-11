@@ -1,8 +1,7 @@
 -- Mid Between: the selection moves so its center lands on the middle of some picked points.
 -- Every run opens the caddy (tools/midBetweenCaddy.py) and the picking starts at once; with nothing selected only the hint "Select objects first" shows.
 -- Left clicks in a viewport pick: snap points (snaps forced on) or objects, whose pivots are the points (the default).
--- OK or Enter moves and closes; Cancel, a right click (in a viewport or on the caddy), or the macro's button or shortcut again, cancels and closes.
--- Esc does nothing: it only starts the same pick again (Esc crashed Max).
+-- OK or Enter moves and closes; Cancel, a right click or Esc (in a viewport or on the caddy), or the macro's button or shortcut again, cancels and closes.
 -- A change on the caddy applies at once and the picking goes on; switching between snap points and object pivots restarts the pick.
 -- The picked points are yellow markers of constant screen size, drawn in the viewports (lib/overlay.ms).
 -- The selection itself moves live as points are picked and options change (no undo); Enter keeps the move as one undo step, a cancel puts it back.
@@ -303,10 +302,8 @@ fn AlecMidBetween_pick sess =
 )
 
 -- what a pick gave: a Point3 to add, #again (pick again), #cancel, or #ended (the caddy ended the session and stopped the pick).
--- Esc picks again, it must not close anything; pickObject gives undefined for a right click and for Esc alike, so escDown (Esc held
--- when it returned) tells them apart.
--- Anything else (a right click, another Max command that ended the pick) cancels
-fn AlecMidBetween_outcome sess answer escDown =
+-- Anything else (a right click, Esc, another Max command that ended the pick) cancels
+fn AlecMidBetween_outcome sess answer =
 (
 	if sess.ended then #ended
 	else if sess.restart then
@@ -316,7 +313,6 @@ fn AlecMidBetween_outcome sess answer escDown =
 	)
 	else if isValidNode answer then answer.pos
 	else if classOf answer == Point3 then answer
-	else if answer == #escape or (answer == undefined and escDown) then #again
 	else #cancel
 )
 
@@ -324,23 +320,19 @@ fn AlecMidBetween_outcome sess answer escDown =
 fn AlecMidBetween_pickLoop =
 (
 	local sess = AlecMidBetween_active
-	local caddy = python.import "AlecTools_caddy"
 	while not sess.ended and AlecMidBetween_active == sess do
 	(
-		local answer = AlecMidBetween_pick sess
-		local escDown = caddy.escape_down()
-		local outcome = AlecMidBetween_outcome sess answer escDown
+		local outcome = AlecMidBetween_outcome sess (AlecMidBetween_pick sess)
 		if classOf outcome == Point3 then
 		(
 			append sess.points outcome
 			AlecMidBetween_updatePreview sess
 		)
-		else if outcome == #cancel then
+		else if outcome == #cancel do
 		(
 			AlecTools_closeCaddy()
 			AlecMidBetween_end()
 		)
-		else if escDown do caddy.wait_for_escape_up()
 	)
 )
 

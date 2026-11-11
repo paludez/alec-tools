@@ -22,12 +22,11 @@ HELP = "\n".join([
     "Layer: the cages go into the \"BBox helpers\" layer, else into their object's layer.",
     "Reset: every option back to its default.",
     "OK, Enter with no value being typed, or a left click in a viewport: keeps the cages, one undo step.",
-    "Cancel, a right click, or the button / shortcut again: removes them.",
+    "Cancel, Esc, a right click, or the button / shortcut again: removes them.",
 ])
 
 
-class BBoxCaddy(AlecTools_caddy.ViewportClicks, AlecTools_caddy.Caddy):
-    CLICK_AWAY = True
+class BBoxCaddy(AlecTools_caddy.Caddy):
     ENTER_WATCH = True
     # it has value boxes: the macro's shortcut pressed while typing still closes it
     KEY_TOGGLES = True
@@ -63,9 +62,8 @@ class BBoxCaddy(AlecTools_caddy.ViewportClicks, AlecTools_caddy.Caddy):
         self.show_anchor()
 
     def pick_anchor(self):
-        self.paused = True
+        rt.AlecTools_clickPause()
         rt.AlecBBox_pickAnchor()
-        self.paused = False
         self.show_anchor()
 
     def clear(self):
@@ -91,6 +89,7 @@ class BBoxCaddy(AlecTools_caddy.ViewportClicks, AlecTools_caddy.Caddy):
         self.close()
 
     def closed(self):
+        rt.AlecTools_clickEnd()
         rt.AlecBBox_end()
 
 

@@ -6,18 +6,38 @@
 -- Ctrl switches the plane on and off (World XY unless the caddy chose another): the lines are projected on that plane, through
 -- the first point, and the angle is the one seen looking straight at it, e.g. from the top view for World XY.
 -- Every run opens the caddy (tools/measureAngleCaddy.py: what to measure, which plane) and starts measuring at once; changing an option
--- starts the measurement again. With nothing selected only the hint "Select objects first" shows.
--- Angles are written both ways (a and 180 - a), since two lines make both. Right click ends and clears the viewports and closes the caddy; Esc ends only the measure.
+-- starts the measurement again. It needs no selection.
+-- Angles are written both ways (a and 180 - a), since two lines make both. Right click ends and clears the viewports and closes the caddy.
 
 global AlecMeasureAngle_overlay = undefined
 
--- true while the tools are stopped on purpose (a restart, the caddy closing): that is no end of the measurement
+-- true while the tools are stopped on purpose (an option changed, the caddy closing): that is no end of the measurement
 global AlecMeasureAngle_stopping = false
+-- true while a running tool hands a click on the caddy on (AlecMeasureAngle_caddyClick); a stop asked then waits for the tool's #stop
+global AlecMeasureAngle_inClick = false
+global AlecMeasureAngle_stopAsked = false
+-- #(what, plane) when an option changed: the loop in AlecMeasureAngle_run starts the measurement again once the old one has stopped
+global AlecMeasureAngle_wanted = undefined
 
--- a measurement ended by a right click closes the caddy; Esc must not (docs/max-verified.md: Esc and Qt), it only ends the measure
+-- a measurement ended by a right click closes the caddy
 fn AlecMeasureAngle_ended =
 (
-	if not AlecMeasureAngle_stopping and not (python.import "AlecTools_caddy").escape_down() do AlecTools_closeCaddy()
+	if not AlecMeasureAngle_stopping and not AlecMeasureAngle_stopAsked and AlecMeasureAngle_wanted == undefined do AlecTools_closeCaddy()
+	AlecMeasureAngle_stopAsked = false
+)
+
+-- a click of a running tool on the caddy (the tool holds the mouse) clicks the caddy's button there. Gives undefined when the click
+-- was not on the caddy, #stop when that button asked the measurement to stop (an option changed, the caddy closed), else #done
+fn AlecMeasureAngle_caddyClick =
+(
+	if not (AlecTools_overCaddy()) then undefined
+	else
+	(
+		AlecMeasureAngle_inClick = true
+		try ((python.import "AlecTools_caddy").click_caddy()) catch (AlecMeasureAngle_inClick = false; throw())
+		AlecMeasureAngle_inClick = false
+		if AlecMeasureAngle_stopAsked then #stop else #done
+	)
 )
 
 fn AlecMeasureAngle_draw = if AlecMeasureAngle_overlay != undefined do AlecTools_drawOverlay AlecMeasureAngle_overlay
@@ -121,7 +141,7 @@ global AlecMeasureAngle_cursor = undefined
 -- the end of the prompt: the plane in use and the keys
 fn AlecMeasureAngle_promptTail =
 (
-	" | " + (if AlecMeasureAngle_flat then AlecMeasureAngle_planeName else "3D") + ", Ctrl = 3D/" + AlecMeasureAngle_planeName + " | right click or Esc = end and clear"
+	" | " + (if AlecMeasureAngle_flat then AlecMeasureAngle_planeName else "3D") + ", Ctrl = 3D/" + AlecMeasureAngle_planeName + " | right click = end and clear"
 )
 
 fn AlecMeasureAngle_prompt =
@@ -168,8 +188,11 @@ tool AlecMeasureAngle_tool
 	fn track =
 	(
 		AlecTools_ctrlSeen()
-		AlecMeasureAngle_cursor = worldPoint
-		AlecMeasureAngle_show()
+		if not (AlecTools_overCaddy()) do
+		(
+			AlecMeasureAngle_cursor = worldPoint
+			AlecMeasureAngle_show()
+		)
 	)
 
 	on start do
@@ -184,10 +207,15 @@ tool AlecMeasureAngle_tool
 	-- the first click comes twice, on press (1) and on release (2): the release is skipped
 	on mousePoint clickno do if clickno != 2 do
 	(
-		if AlecMeasureAngle_fixed.count == 4 do AlecMeasureAngle_fixed = #()
-		append AlecMeasureAngle_fixed worldPoint
-		AlecMeasureAngle_cursor = worldPoint
-		AlecMeasureAngle_show()
+		local c = AlecMeasureAngle_caddyClick()
+		if c != undefined then c
+		else
+		(
+			if AlecMeasureAngle_fixed.count == 4 do AlecMeasureAngle_fixed = #()
+			append AlecMeasureAngle_fixed worldPoint
+			AlecMeasureAngle_cursor = worldPoint
+			AlecMeasureAngle_show()
+		)
 	)
 	on stop do
 	(
@@ -208,14 +236,19 @@ fn AlecMeasureAngle_start normal name flat =
 	AlecTools_withSnaps AlecMeasureAngle_pick
 )
 
+-- defined in tools/measureAngleDialog.ms, which the caddy loads; declared here so AlecMeasureAngle_run below is bound to it
+global AlecMeasureAngle_dialogStart
+
 -- the macro's entry: the caddy opens, then the measurement starts with its saved choices (it returns when the measurement ends)
 fn AlecMeasureAngle_run =
 (
 	AlecTools_closeCaddy()
-	if AlecTools_hasSelection() do
+	AlecTools_runPython "measureAngleCaddy.py"
+	AlecMeasureAngle_wanted = AlecTools_recallSettings "MeasureAngle" #(2, 1)
+	while AlecMeasureAngle_wanted != undefined do
 	(
-		AlecTools_runPython "measureAngleCaddy.py"
-		local saved = AlecTools_recallSettings "MeasureAngle" #(2, 1)
-		AlecMeasureAngle_dialogStart saved[1] saved[2]
+		local w = AlecMeasureAngle_wanted
+		AlecMeasureAngle_wanted = undefined
+		AlecMeasureAngle_dialogStart w[1] w[2]
 	)
 )

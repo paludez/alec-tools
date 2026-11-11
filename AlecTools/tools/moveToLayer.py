@@ -67,13 +67,8 @@ def color_icon(c):
     return QtGui.QIcon(pix)
 
 
-# Esc does nothing on the popup, the name dialog and the right click menu (it crashed Max): only a click elsewhere or Cancel closes them
-class NameDialog(AlecTools_caddy.NoEscape, QtWidgets.QInputDialog):
-    pass
-
-
 def ask_new_layer(default, parent_layer):
-    dialog = NameDialog(GetQMaxMainWindow())
+    dialog = QtWidgets.QInputDialog(GetQMaxMainWindow())
     dialog.setWindowTitle("New Layer")
     dialog.setLabelText("Name:")
     dialog.setTextValue(default)
@@ -95,7 +90,11 @@ def ask_new_layer(default, parent_layer):
     rt.redrawViews()
 
 
-class MoveToLayerPopup(AlecTools_caddy.NoEscape, QtWidgets.QFrame):
+class MoveToLayerPopup(QtWidgets.QFrame):
+    # what AlecTools_caddy.ToggleKey reads of a caddy
+    section = "Move to Layer"
+    OWN_KEYS = ""
+
     def __init__(self, parent):
         super().__init__(parent, QtCore.Qt.Popup)
         # drawn as a caddy; AlecTools_closeCaddy closes it too
@@ -217,7 +216,7 @@ class MoveToLayerPopup(AlecTools_caddy.NoEscape, QtWidgets.QFrame):
         item = self.tree.itemAt(pos)
         if item is None:
             return
-        menu = AlecTools_caddy.Menu(self)
+        menu = QtWidgets.QMenu(self)
         menu.addAction("New Sublayer…", lambda: self.new_layer(self.layer_of(item)))
         menu.exec(self.tree.viewport().mapToGlobal(pos))
 
@@ -250,8 +249,9 @@ class MoveToLayerPopup(AlecTools_caddy.NoEscape, QtWidgets.QFrame):
 
     def watch_shortcut(self):
         toggle_key = AlecTools_caddy.ToggleKey(self)
-        typed = toggle_key.modifiers & ~QtCore.Qt.ShiftModifier == QtCore.Qt.NoModifier and any(0x30 <= vk <= 0x5A for vk in toggle_key.keys)
-        if toggle_key.keys and not typed:
+        keys, modifiers = toggle_key.own[0]
+        typed = modifiers & ~QtCore.Qt.ShiftModifier == QtCore.Qt.NoModifier and any(0x30 <= vk <= 0x5A for vk in keys)
+        if keys and not typed:
             for widget in [self] + self.findChildren(QtWidgets.QWidget):
                 widget.installEventFilter(toggle_key)
 

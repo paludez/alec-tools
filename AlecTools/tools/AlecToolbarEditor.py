@@ -1,5 +1,5 @@
 """Alec Tools toolbar editor (Edit Toolbar macro, tools/toolbarEditor.py): a caddy with the macros on one side, the toolbar on the other;
-Apply rebuilds the toolbar with the changes, OK saves them, Cancel puts back what was saved. A click elsewhere is Cancel, except while
+Apply rebuilds the toolbar with the changes, OK saves them, Cancel puts back what was saved. A click elsewhere or Esc is Cancel, except while
 its color or folder dialog is open; the macro run again closes it too."""
 
 import json
@@ -47,15 +47,10 @@ class ColorButton(QtWidgets.QPushButton):
 
     def pick(self):
         start = self.color
-        dialog = ColorDialog(QtGui.QColor(start), self)
+        dialog = QtWidgets.QColorDialog(QtGui.QColor(start), self)
         dialog.currentColorChanged.connect(lambda c: self.pick_live(c.name()))
         if not dialog.exec():
             self.pick_live(start)
-
-
-# Esc does nothing on the editor and its color dialog (it crashed Max): OK, Cancel or the close button
-class ColorDialog(AlecTools_caddy.NoEscape, QtWidgets.QColorDialog):
-    pass
 
 
 class Editor(AlecTools_caddy.Caddy):

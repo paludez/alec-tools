@@ -23,7 +23,7 @@ HELP = "\n".join([
     "Changing an option starts the measurement again; the yellow line here shows the angle.",
     "While measuring: Ctrl = plane on / off (3D: World XY).",
     "Reset: both options back to their defaults.",
-    "OK, Enter, Cancel, a right click, or the button / shortcut again: end the measurement and close.",
+    "OK, Enter, Cancel, Esc, a right click, or the button / shortcut again: end the measurement and close.",
     "The choices are kept for this scene.",
 ])
 
@@ -58,7 +58,7 @@ class MeasureAngleCaddy(AlecTools_caddy.Caddy):
         self.close()
 
     def closed(self):
-        rt.AlecMeasureAngle_stop()
+        rt.AlecMeasureAngle_end()
 
 
 rt.fileIn(rt.AlecTools_path("tools/measureAngleDialog.ms"))

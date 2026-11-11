@@ -22,7 +22,7 @@ HELP = "\n".join([
     "OK, or Enter: converts, in one undo step, and keeps these settings for this scene.",
     "    Instances stay instances; sun and sky are only listed.",
     "    What did not map is listed in the Listener.",
-    "Cancel, or the button / shortcut again: closes without converting.",
+    "Cancel, Esc, or the button / shortcut again: closes without converting.",
     "A plain click on the button converts with the last settings. Needs V-Ray and Arnold.",
 ])
 

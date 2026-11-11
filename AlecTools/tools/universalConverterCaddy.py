@@ -26,7 +26,7 @@ HELP = "\n".join([
     "    Copy to Slate = copies go to the Slate view \"UniversalConverter\", the scene stays.",
     "OK, or Enter: converts and keeps these settings for this scene.",
     "    What did not map is listed in the Listener.",
-    "Cancel, or the button / shortcut again: closes without converting.",
+    "Cancel, Esc, or the button / shortcut again: closes without converting.",
     "A plain click on the button converts with the last settings.",
 ])
 

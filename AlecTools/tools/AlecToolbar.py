@@ -197,7 +197,7 @@ def resource_icon(file_name):
 def fill_menu(bar, menu, items, info):
     for item in items:
         if isinstance(item, dict):
-            sub = AlecTools_caddy.Menu(item["title"], menu)
+            sub = QtWidgets.QMenu(item["title"], menu)
             menu.addMenu(sub)
             sub.setEnabled(bool(item["items"]))
             fill_menu(bar, sub, item["items"], info)
@@ -209,7 +209,7 @@ def fill_menu(bar, menu, items, info):
 
 def add_menu(bar, name, info):
     spec = MENUS[name]
-    menu = AlecTools_caddy.Menu(bar)
+    menu = QtWidgets.QMenu(bar)
     fill_menu(bar, menu, spec["items"], info)
     action = bar.addAction(spec["title"])
     action.setMenu(menu)
@@ -326,8 +326,7 @@ def build(window, config):
         if action.icon().isNull() and not action.isSeparator() and action.data() not in AlecToolbarFields.FIELDS:
             bar.widgetForAction(action).setToolButtonStyle(QtCore.Qt.ToolButtonTextOnly)
     add_option_marks(bar, config)
-    # on the toolbar's own widgets only: a filter on the whole application runs Python for every event in Max, and with it a held
-    # Esc in a viewport crashed Max
+    # on the toolbar's own widgets only: a filter on the whole application runs Python for every event in Max
     clicks = ToolbarClicks(bar)
     for widget in [bar] + bar.findChildren(QtWidgets.QWidget):
         widget.installEventFilter(clicks)

@@ -409,11 +409,12 @@ fn AlecDistribute_pickAxes =
 
 -- run
 
--- a caddy that is already open closes first (its objects go back), then the tool starts again from the current selection;
--- with nothing selected only the hint shows
-fn AlecDistribute_run =
+-- a caddy that is already open closes first (its objects go back), then the caddy opens for the current selection;
+-- with nothing selected only the hint shows. True when the caddy is open
+fn AlecDistribute_open =
 (
 	AlecTools_closeCaddy()
+	local opened = false
 	if AlecTools_hasSelection() do
 	(
 		local sources = AlecDistribute_sources (selection as array)
@@ -425,6 +426,11 @@ fn AlecDistribute_run =
 			AlecDistribute_updatePreview AlecDistribute_active
 			AlecTools_beginOverlayTool AlecDistribute_draw undefined
 			python.ExecuteFile (AlecTools_path "tools/distributeCaddy.py")
+			opened = true
 		)
 	)
+	opened
 )
+
+-- the caddy, then the viewport clicks until it closes
+fn AlecDistribute_run = if AlecDistribute_open() do AlecTools_clickLoop()

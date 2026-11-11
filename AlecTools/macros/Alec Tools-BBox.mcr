@@ -1,6 +1,6 @@
 macroScript BBox
 category:"Alec Tools"
-toolTip:"BBox - box cages around the selection. opens a caddy with a live preview; Enter or left click = OK, right click = Cancel"
+toolTip:"BBox - box cages around the selection. opens a caddy with a live preview; Enter or left click = OK, right click or Esc = Cancel"
 buttonText:"BBox"
 iconName:":/Icons/BlendedBoxMap/BoundingBox_24.png"
 (

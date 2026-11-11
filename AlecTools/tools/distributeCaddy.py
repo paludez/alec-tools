@@ -35,12 +35,11 @@ HELP = "\n".join([
     "Show dimensions: the boxes, the line and the lengths in the viewports.",
     "Reset: every option back to its default.",
     "OK, Enter with no value being typed, or a left click in a viewport: moves the objects, one undo step.",
-    "Cancel, a right click, or the button / shortcut again: puts them back.",
+    "Cancel, Esc, a right click, or the button / shortcut again: puts them back.",
 ])
 
 
-class DistributeCaddy(AlecTools_caddy.ViewportClicks, AlecTools_caddy.Caddy):
-    CLICK_AWAY = True
+class DistributeCaddy(AlecTools_caddy.Caddy):
     ENTER_WATCH = True
     # it has value boxes: the macro's shortcut pressed while typing still closes it
     KEY_TOGGLES = True
@@ -95,12 +94,10 @@ class DistributeCaddy(AlecTools_caddy.ViewportClicks, AlecTools_caddy.Caddy):
             b.setEnabled(has_anchor)
         self.blend.setEnabled(has_anchor)
 
-    # the clicks of a pick in a viewport are no OK / Cancel
+    # the viewport clicks of the caddy are paused while a pick runs
     def pick(self, run):
-        self.paused = True
-        enough = run()
-        self.paused = False
-        self.update(enough)
+        rt.AlecTools_clickPause()
+        self.update(run())
 
     def auto_values(self):
         self.update(rt.AlecDistribute_auto())
@@ -138,6 +135,7 @@ class DistributeCaddy(AlecTools_caddy.ViewportClicks, AlecTools_caddy.Caddy):
         self.close()
 
     def closed(self):
+        rt.AlecTools_clickEnd()
         rt.AlecDistribute_end()
 
 

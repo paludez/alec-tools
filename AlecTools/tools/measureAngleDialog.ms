@@ -3,7 +3,7 @@
 -- Faces: hover, the face lights up, a click takes it; 2 faces, the angle between the faces (not their normals) on the side of each click.
 -- A third click starts a new measure. Plane: 3D, World XY / XZ / YZ, through 3 clicked points, or the plane of a clicked face;
 -- with a plane, edges are projected on it and faces are cut by it, so the angle is the one seen looking straight at that plane.
--- Ctrl switches the plane on and off. Right click ends and closes the caddy, Esc ends the measure only.
+-- Ctrl switches the plane on and off. Right click ends and closes the caddy.
 
 -- where two surfaces meet (#(pos, normal) each): the line where their planes cross, and on it the foot of each clicked point;
 -- each foot-to-point arm lies in its face, square to that line, so the angle between the arms is the angle between the faces,
@@ -122,13 +122,21 @@ fn AlecMeasureAngle_faceAt screenPoint =
 	)
 )
 
--- the edges of a mesh face as #(a, b) each, world space; only the real ones, all 3 when the face has none
-fn AlecMeasureAngle_faceEdges m face =
+-- the edges of a mesh triangle as #(a, b) each, world space; only the real ones (not hidden diagonals) when realOnly
+fn AlecMeasureAngle_triangleEdges m face realOnly:false =
 (
 	local fv = getFace m face
 	local v = #(getVert m fv.x, getVert m fv.y, getVert m fv.z)
-	local edges = for i = 1 to 3 where getEdgeVis m face i collect #(v[i], v[(mod i 3) + 1])
-	if edges.count == 0 then for i = 1 to 3 collect #(v[i], v[(mod i 3) + 1]) else edges
+	for i = 1 to 3 where not realOnly or getEdgeVis m face i collect #(v[i], v[(mod i 3) + 1])
+)
+
+-- the real edges (not the hidden diagonals) of the whole polygon a mesh triangle is part of, as #(a, b) each, world space;
+-- the triangle's 3 edges when none is real. The nearest real edge to the mouse may lie on another triangle of that polygon
+fn AlecMeasureAngle_faceEdges m face =
+(
+	local edges = #()
+	for f in meshop.getPolysUsingFace m #{face} do join edges (AlecMeasureAngle_triangleEdges m f realOnly:true)
+	if edges.count == 0 then AlecMeasureAngle_triangleEdges m face else edges
 )
 
 fn AlecMeasureAngle_segmentDistance p a b =
@@ -204,7 +212,7 @@ tool AlecMeasureAngle_pickTool
 	fn track =
 	(
 		AlecTools_ctrlSeen()
-		if AlecTools_hoverMoved viewPoint do
+		if AlecTools_hoverMoved viewPoint and not (AlecTools_overCaddy()) do
 		(
 			AlecMeasureAngle_hover = AlecMeasureAngle_hoverAt viewPoint AlecMeasureAngle_mode
 			AlecMeasureAngle_pickShow()
@@ -223,14 +231,19 @@ tool AlecMeasureAngle_pickTool
 	-- the first click comes twice, on press (1) and on release (2): the release is skipped
 	on mousePoint clickno do if clickno != 2 do
 	(
-		local h = AlecMeasureAngle_hoverAt viewPoint AlecMeasureAngle_mode
-		if h != undefined do
+		local c = AlecMeasureAngle_caddyClick()
+		if c != undefined then c
+		else
 		(
-			if AlecMeasureAngle_picked.count == 2 do AlecMeasureAngle_picked = #()
-			append AlecMeasureAngle_picked h[1]
+			local h = AlecMeasureAngle_hoverAt viewPoint AlecMeasureAngle_mode
+			if h != undefined do
+			(
+				if AlecMeasureAngle_picked.count == 2 do AlecMeasureAngle_picked = #()
+				append AlecMeasureAngle_picked h[1]
+			)
+			AlecMeasureAngle_hover = h
+			AlecMeasureAngle_pickShow()
 		)
-		AlecMeasureAngle_hover = h
-		AlecMeasureAngle_pickShow()
 	)
 	on stop do
 	(
@@ -277,7 +290,9 @@ tool AlecMeasureAngle_planeTool
 	on mouseMove clickno do track()
 	on mousePoint clickno do if clickno != 2 do
 	(
-		if AlecMeasureAngle_planeBy == #face then
+		local c = AlecMeasureAngle_caddyClick()
+		if c != undefined then c
+		else if AlecMeasureAngle_planeBy == #face then
 		(
 			local h = AlecMeasureAngle_hoverAt viewPoint #faces
 			if h != undefined do
@@ -303,13 +318,14 @@ tool AlecMeasureAngle_planeTool
 		AlecMeasureAngle_overlay = undefined
 		AlecMeasureAngle_freePick()
 		AlecTools_endOverlayTool()
+		AlecMeasureAngle_stopAsked = false
 	)
 )
 
 fn AlecMeasureAngle_pickPlaneTool =
 (
 	local text = if AlecMeasureAngle_planeBy == #points then "Measure Angle: click 3 points of the plane" else "Measure Angle: click the face of the plane"
-	startTool AlecMeasureAngle_planeTool snap:#3D prompt:(text + " | right click or Esc = cancel")
+	startTool AlecMeasureAngle_planeTool snap:#3D prompt:(text + " | right click = cancel")
 )
 
 -- the normal of a plane picked by #points or #face, or undefined when it was cancelled (or the 3 points are on one line)
@@ -330,14 +346,24 @@ fn AlecMeasureAngle_runPick mode normal label flat =
 	startTool AlecMeasureAngle_pickTool prompt:(AlecMeasureAngle_pickPrompt())
 )
 
--- stops whatever measurement is running (the caddy's options changed, or it closes); a tool that is not running is left alone
+-- stops whatever measurement is running (the caddy's options changed, or it closes) by switching to the Select command, which ends a
+-- running tool from outside (stopTool did not end it); inside a tool's own click (AlecMeasureAngle_caddyClick) the tool returns #stop instead
 fn AlecMeasureAngle_stop =
 (
-	AlecMeasureAngle_stopping = true
-	stopTool AlecMeasureAngle_tool
-	stopTool AlecMeasureAngle_pickTool
-	stopTool AlecMeasureAngle_planeTool
-	AlecMeasureAngle_stopping = false
+	if AlecMeasureAngle_inClick then AlecMeasureAngle_stopAsked = true
+	else
+	(
+		AlecMeasureAngle_stopping = true
+		max select
+		AlecMeasureAngle_stopping = false
+	)
+)
+
+-- the caddy closed: the measurement stops for good
+fn AlecMeasureAngle_end =
+(
+	AlecMeasureAngle_wanted = undefined
+	AlecMeasureAngle_stop()
 )
 
 -- the caddy starts the measurement (tools/measureAngleCaddy.py): what is 1 Points, 2 Edges, 3 Faces; plane is 1 3D, 2 World XY, 3 World XZ, 4 World YZ, 5 3 points, 6 Pick face
@@ -358,16 +384,16 @@ fn AlecMeasureAngle_dialogStart what plane =
 		local flat = plane != 1
 		case what of
 		(
-			1: AlecMeasureAngle_start normal:normal name:label flat:flat
+			1: AlecMeasureAngle_start normal label flat
 			2: AlecMeasureAngle_runPick #edges normal label flat
 			3: AlecMeasureAngle_runPick #faces normal label flat
 		)
 	)
 )
 
--- an option changed: the measurement starts again, as if it had been started anew
+-- an option changed: the running measurement stops and the loop in AlecMeasureAngle_run starts it again, as if it had been started anew
 fn AlecMeasureAngle_restart what plane =
 (
+	AlecMeasureAngle_wanted = #(what, plane)
 	AlecMeasureAngle_stop()
-	AlecMeasureAngle_dialogStart what plane
 )

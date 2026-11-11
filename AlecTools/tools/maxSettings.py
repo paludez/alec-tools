@@ -1,7 +1,7 @@
 """Max Settings (Max Settings macro): a caddy in the middle of the screen with the three settings transfer commands, Export, Import and
 Restore (code in tools/maxSettings.ms). Each has its path, kept in AlecTools.ini between sessions; Import and Restore have a
 tick to use the Export path instead (Import: the AlecSettings.zip in it, Restore: that folder, where an import of that zip leaves its
-backups, AlecSettings-backup-<date and time>.zip; the last three are kept). The macro run again closes it, also while typing in a path (KEY_TOGGLES);
+backups, AlecSettings-backup-<date and time>.zip; the last three are kept). The macro run again or Esc closes it, also while typing in a path (KEY_TOGGLES);
 so does a click elsewhere (CLICK_AWAY), except while its folder / file dialog or its question is open.
 """
 
@@ -32,7 +32,7 @@ HELP = "\n".join([
     "Before Import or Restore, untick \"Save UI configuration on exit\"",
     "    (Customize > Preferences > General), or Max overwrites the new settings when it closes.",
     "    Restart Max after, to see them.",
-    "The macro again, or a click elsewhere: closes the caddy.",
+    "Esc, the macro again, or a click elsewhere: closes the caddy.",
 ])
 UI_ON_EXIT = '"Save UI configuration on exit" (Customize > Preferences > General) is on: Max would overwrite the new settings when it closes.\n\nUntick it first. Go on anyway?'
 
@@ -44,11 +44,6 @@ def ini_get(key):
 # the folders are kept in AlecTools.ini: the user allowed this exception to the ini rule
 def ini_set(key, value):
     rt.setINISetting(rt.AlecTools_iniFile(), SECTION, key, value)
-
-
-# Esc does nothing on the question (it crashed Max on this caddy): Yes or No
-class Question(AlecTools_caddy.NoEscape, QtWidgets.QMessageBox):
-    pass
 
 
 class MaxSettingsCaddy(AlecTools_caddy.Caddy):
@@ -166,7 +161,7 @@ class MaxSettingsCaddy(AlecTools_caddy.Caddy):
     def ui_on_exit_ok(self):
         if str(rt.AlecMaxSettings_saveUiOnExit()) == "0":
             return True
-        box = Question(QtWidgets.QMessageBox.Question, SECTION, UI_ON_EXIT, QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, self)
+        box = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Question, SECTION, UI_ON_EXIT, QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, self)
         return self.with_dialog(box.exec) == QtWidgets.QMessageBox.Yes
 
     def export(self):

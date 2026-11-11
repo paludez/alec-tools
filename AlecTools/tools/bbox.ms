@@ -250,11 +250,12 @@ fn AlecBBox_clearAnchor =
 
 -- run
 
--- a caddy that is already open closes first (its preview goes with it), then the tool starts again from the current selection;
--- with nothing selected only the hint shows
-fn AlecBBox_run =
+-- a caddy that is already open closes first (its preview goes with it), then the caddy opens for the current selection;
+-- with nothing selected only the hint shows. True when the caddy is open
+fn AlecBBox_open =
 (
 	AlecTools_closeCaddy()
+	local opened = false
 	if AlecTools_hasSelection() do
 	(
 		local sources = AlecBBox_sources (selection as array)
@@ -266,6 +267,11 @@ fn AlecBBox_run =
 				hadLayer:(LayerManager.getLayerFromName "BBox helpers" != undefined)
 			AlecBBox_updatePreview AlecBBox_active
 			python.ExecuteFile (AlecTools_path "tools/bboxCaddy.py")
+			opened = true
 		)
 	)
+	opened
 )
+
+-- the caddy, then the viewport clicks until it closes
+fn AlecBBox_run = if AlecBBox_open() do AlecTools_clickLoop()

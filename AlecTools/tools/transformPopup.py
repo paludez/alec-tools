@@ -5,8 +5,8 @@ AlecToolbarFields.TransformFields, so typing, arithmetic, the middle-drag ladder
 toolbar, and they follow the selection through AlecToolbar.refresh_all. X, Y, Z have no letters: the frame of their box is red, green
 and blue, as Max's gizmo.
 A value is applied when it is entered (Tab, or leaving the box). Enter or a left click in a viewport enters what is typed and closes
-(accept; the click selects nothing). A right click in a viewport or on an empty part of the caddy, the macro run again or its shortcut
-cancels: the objects go back to the transforms they had when the popup opened (ViewportClicks in lib/AlecTools_caddy.py, no Esc).
+(accept; the click selects nothing). A right click in a viewport or on an empty part of the caddy, Esc, the macro run again or its shortcut
+cancels: the objects go back to the transforms they had when the popup opened (ViewportClicks in lib/AlecTools_caddy.py).
 The shortcut of Grab, Rotate, Scale or Create Popup accepts and opens that one (AlecTools_switchTool, AlecTools_caddy.ToggleKey). It
 opens without the focus: click a box to type, Tab goes on. The help is the info icon at the top right of the Move frame.
 """
@@ -30,7 +30,7 @@ HELP = "\n".join([
     "Enter: enter the value and close (accept)",
     "Left click in a viewport: enter the value and close (the click selects nothing)",
     "Right click in a viewport or on an empty part: cancel, the objects go back to how they were when it opened",
-    "This tool's shortcut again: cancel",
+    "Esc, or this tool's shortcut again: cancel",
     "Shortcut of Grab, Rotate, Scale or Create Popup: accept and open that one",
     "Right click on a box: reset it (0, scale 100%); on a row's icon or letter: X, Y, Z together",
     "Middle drag on a box: ladder, left / right picks the step, up / down changes the value",
@@ -174,7 +174,7 @@ class TransformPopup(AlecTools_caddy.ViewportClicks, AlecTools_caddy.Caddy):
     def eventFilter(self, watched, event):
         if event.type() not in (QtCore.QEvent.KeyPress, QtCore.QEvent.MouseButtonPress):
             return False
-        AlecTools_caddy.without_escape(self.hold)()
+        self.hold()
         if event.type() == QtCore.QEvent.KeyPress and event.key() in (QtCore.Qt.Key_Return, QtCore.Qt.Key_Enter):
             self.ok()
             return True
@@ -201,7 +201,7 @@ class TransformPopup(AlecTools_caddy.ViewportClicks, AlecTools_caddy.Caddy):
                 box.edited = False
         super().closeEvent(event)
 
-    # closed without accepting (a right click, the shortcut or the macro again): the held objects go back, as one undo step
+    # closed without accepting (a right click, Esc, the shortcut or the macro again): the held objects go back, as one undo step
     def closed(self):
         if self.accepted:
             return

@@ -2,13 +2,12 @@
 stays open while the points are picked:
 - left clicks in a viewport pick (the pickPoint / pickObject loop of tools/midBetween.ms runs while the caddy is open);
 - OK, or Enter (also in a viewport: Caddy.ENTER_WATCH), moves and closes (AlecMidBetween_accept);
-- Cancel, a right click in a viewport (the loop closes the caddy) or on the caddy, and the macro's button or shortcut again cancel
+- Cancel, a right click or Esc in a viewport (the loop closes the caddy) or on the caddy, and the macro's button or shortcut again cancel
   (AlecMidBetween_end), nothing moves;
 - Reset puts the options back to their defaults;
 - every option applies at once (AlecMidBetween_change) and the preview follows; the pick waiting in the viewport goes on, or starts
   again when the kind of pick changes.
 - the selection follows the points live; OK keeps it, every cancel puts it back.
-Esc does nothing.
 """
 
 from pymxs import runtime as rt
@@ -36,7 +35,7 @@ HELP = "\n".join([
     "Clear points: drops the points picked so far.",
     "Reset: every option back to its default.",
     "OK, or Enter: keeps the move, one undo step.",
-    "Cancel, a right click, or the button / shortcut again: the selection goes back.",
+    "Cancel, Esc, a right click, or the button / shortcut again: the selection goes back.",
 ])
 
 
